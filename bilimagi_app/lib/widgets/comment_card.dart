@@ -1,0 +1,303 @@
+import 'package:flutter/material.dart';
+import '../models/week.dart';
+import '../models/comment.dart';
+import '../models/comment_tree.dart';
+import '../services/mention_service.dart';
+import '../core/theme.dart';
+import '../core/avatar_colors.dart';
+import '../core/time_utils.dart';
+import '../screens/profile_screen.dart';
+import 'vote_buttons.dart';
+
+/// Comment card widget for displaying a single comment
+class CommentCard extends StatelessWidget {
+  final CommentTree commentNode;
+  final Week week;
+  final String articleId;
+  final VoidCallback onReply;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final bool isOwnComment;
+
+  const CommentCard({
+    super.key,
+    required this.commentNode,
+    required this.week,
+    required this.articleId,
+    required this.onReply,
+    this.onEdit,
+    this.onDelete,
+    this.isOwnComment = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final comment = commentNode.comment;
+    final depth = comment.depth;
+    final leftPadding = depth * 20.0; // 20px per level
+    const maxDepth = 5; // Limit indentation
+
+    // v4.0: Show deleted comment placeholder
+    if (comment.isDeleted) {
+      return _buildDeletedComment(context, depth, maxDepth, leftPadding);
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: 16,
+        left: depth > maxDepth ? maxDepth * 20.0 : leftPadding,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Avatar
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: getAvatarColor(comment.uid),
+            child: Text(
+              comment.displayName.isNotEmpty
+                  ? comment.displayName[0].toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Comment content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Name, time, and edit indicator
+                _buildHeader(context, comment),
+                const SizedBox(height: 4),
+                // Comment text with mentions
+                _buildCommentText(context, comment.text),
+                const SizedBox(height: 6),
+                // Vote and reply buttons
+                _buildActions(context, comment),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeletedComment(
+    BuildContext context,
+    int depth,
+    int maxDepth,
+    double leftPadding,
+  ) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: 16,
+        left: depth > maxDepth ? maxDepth * 20.0 : leftPadding,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: AppTheme.getTextTertiary(context),
+            child: const Icon(Icons.person_off, color: Colors.white, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.getTextTertiary(context).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '[Bu yorum silindi]',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontStyle: FontStyle.italic,
+                  color: AppTheme.getTextTertiary(context),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, Comment comment) {
+    return Row(
+      children: [
+        Flexible(
+          child: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ProfileScreen(userId: comment.uid),
+                ),
+              );
+            },
+            child: Text(
+              comment.displayName,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          formatRelativeTime(comment.createdAt),
+          style: TextStyle(
+            fontSize: 12,
+            color: AppTheme.getTextTertiary(context),
+          ),
+        ),
+        // v4.0: Edited indicator
+        if (comment.isEdited) ...[
+          const SizedBox(width: 6),
+          Text(
+            '(düzenlendi)',
+            style: TextStyle(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              color: AppTheme.getTextTertiary(context),
+            ),
+          ),
+        ],
+        const Spacer(),
+        // v4.0: Edit button for own comments
+        if (isOwnComment && week.phase == WeekPhase.discussion && onEdit != null)
+          GestureDetector(
+            onTap: onEdit,
+            child: Icon(
+              Icons.edit_outlined,
+              size: 16,
+              color: AppTheme.getTextTertiary(context),
+            ),
+          ),
+        // v4.0: Delete button for own comments
+        if (isOwnComment && week.phase == WeekPhase.discussion && onDelete != null) ...[
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: onDelete,
+            child: Icon(
+              Icons.delete_outline,
+              size: 16,
+              color: AppTheme.getTextTertiary(context),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCommentText(BuildContext context, String text) {
+    final segments = MentionService.parseTextSegments(text);
+
+    // If no segments parsed, show display text (with userId stripped)
+    if (segments.isEmpty) {
+      return Text(
+        MentionService.getDisplayText(text),
+        style: TextStyle(
+          fontSize: 15,
+          color: AppTheme.getTextPrimary(context),
+          height: 1.4,
+        ),
+      );
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: 15,
+          color: AppTheme.getTextPrimary(context),
+          height: 1.4,
+        ),
+        children: segments.map((segment) {
+          if (segment.isMention) {
+            return WidgetSpan(
+              child: GestureDetector(
+                onTap: () {
+                  if (segment.userId != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            ProfileScreen(userId: segment.userId),
+                      ),
+                    );
+                  }
+                },
+                child: Text(
+                  segment.text,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: AppTheme.primaryColor,
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            );
+          } else {
+            return TextSpan(text: segment.text);
+          }
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildActions(BuildContext context, Comment comment) {
+    return Row(
+      children: [
+        // Upvote/Downvote buttons
+        VoteButtons(
+          weekId: week.id,
+          articleId: articleId,
+          comment: comment,
+        ),
+        const SizedBox(width: 16),
+        // Reply button (only in discussion phase)
+        if (week.phase == WeekPhase.discussion)
+          TextButton.icon(
+            onPressed: onReply,
+            icon: Icon(
+              Icons.reply,
+              size: 16,
+              color: AppTheme.primaryColor,
+            ),
+            label: Text(
+              'Yanıtla',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 0),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        if (comment.replyCount > 0) ...[
+          const SizedBox(width: 12),
+          Text(
+            '${comment.replyCount} yanıt',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppTheme.getTextTertiary(context),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}

@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../models/week.dart';
 import '../models/article.dart';
 import '../models/comment_tree.dart';
-import '../models/user_profile.dart';
 import '../services/week_service.dart';
-import '../services/vote_service.dart';
 import '../services/bookmark_service.dart';
-import '../services/mention_service.dart';
 import '../core/theme.dart';
-import 'profile_screen.dart';
+import '../widgets/article_post_card.dart';
+import '../widgets/comment_card.dart';
+import '../widgets/sort_tabs.dart';
+import '../widgets/discussion_dialogs.dart';
+import '../widgets/mention_autocomplete.dart';
 
 class DiscussionScreen extends StatefulWidget {
   final Week week;
@@ -28,129 +28,27 @@ class DiscussionScreen extends StatefulWidget {
 
 class _DiscussionScreenState extends State<DiscussionScreen> {
   final _weekService = WeekService();
-  final _mentionService = MentionService();
   final _commentController = TextEditingController();
+  late MentionAutocompleteController _mentionController;
   bool _sending = false;
   bool _sortByScore = true; // true = Popüler, false = Yeni
-
-  // Mention autocomplete state
-  bool _showMentionSuggestions = false;
-  List<UserProfile> _mentionSuggestions = [];
-  String _mentionQuery = '';
-  int _mentionStartIndex = -1;
-
-  // Store mentioned users: displayName -> userId
-  final Map<String, String> _mentionedUsers = {};
 
   @override
   void initState() {
     super.initState();
-    _commentController.addListener(_onTextChanged);
+    _mentionController = MentionAutocompleteController(
+      textController: _commentController,
+    );
+    _mentionController.setStateCallback(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
-    _commentController.removeListener(_onTextChanged);
+    _mentionController.dispose();
     _commentController.dispose();
     super.dispose();
-  }
-
-  void _onTextChanged() {
-    final text = _commentController.text;
-    final selection = _commentController.selection;
-
-    if (!selection.isValid || selection.start != selection.end) {
-      _hideMentionSuggestions();
-      return;
-    }
-
-    final cursorPos = selection.start;
-    final textBeforeCursor = text.substring(0, cursorPos);
-
-    // Find last @ before cursor
-    final lastAtIndex = textBeforeCursor.lastIndexOf('@');
-
-    if (lastAtIndex == -1) {
-      _hideMentionSuggestions();
-      return;
-    }
-
-    // Check if there's a space between @ and cursor
-    final textAfterAt = textBeforeCursor.substring(lastAtIndex + 1);
-    if (textAfterAt.contains(' ') || textAfterAt.contains('\n')) {
-      _hideMentionSuggestions();
-      return;
-    }
-
-    // We have a potential mention
-    _mentionStartIndex = lastAtIndex;
-    _mentionQuery = textAfterAt;
-    _searchMentions(textAfterAt);
-  }
-
-  Future<void> _searchMentions(String query) async {
-    if (query.isEmpty) {
-      setState(() {
-        _showMentionSuggestions = true;
-        _mentionSuggestions = [];
-      });
-      return;
-    }
-
-    try {
-      final results = await _mentionService.searchUsers(query);
-      if (mounted && _mentionQuery == query) {
-        setState(() {
-          _showMentionSuggestions = true;
-          _mentionSuggestions = results;
-        });
-      }
-    } catch (e) {
-      // Ignore search errors
-    }
-  }
-
-  void _hideMentionSuggestions() {
-    if (_showMentionSuggestions) {
-      setState(() {
-        _showMentionSuggestions = false;
-        _mentionSuggestions = [];
-        _mentionStartIndex = -1;
-      });
-    }
-  }
-
-  void _insertMention(UserProfile user) {
-    final text = _commentController.text;
-    final cursorPos = _commentController.selection.start;
-
-    // Store the mention mapping
-    _mentionedUsers[user.displayName] = user.uid;
-
-    // Replace @query with @displayName (user-friendly display)
-    final beforeMention = text.substring(0, _mentionStartIndex);
-    final afterMention = text.substring(cursorPos);
-    final displayMention = '@${user.displayName}';
-
-    final newText = '$beforeMention$displayMention $afterMention';
-    _commentController.text = newText;
-
-    // Move cursor after the mention
-    final newCursorPos = beforeMention.length + displayMention.length + 1;
-    _commentController.selection = TextSelection.collapsed(offset: newCursorPos);
-
-    _hideMentionSuggestions();
-  }
-
-  // Convert display mentions to storage format before sending
-  String _convertMentionsToStorageFormat(String text) {
-    String result = text;
-    for (final entry in _mentionedUsers.entries) {
-      final displayFormat = '@${entry.key}';
-      final storageFormat = MentionService.formatMention(entry.key, entry.value);
-      result = result.replaceAll(displayFormat, storageFormat);
-    }
-    return result;
   }
 
   Future<void> _sendComment() async {
@@ -161,15 +59,14 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
 
     try {
       // Convert @displayName to @[displayName](userId) format
-      final formattedText = _convertMentionsToStorageFormat(text);
+      final formattedText = _mentionController.convertToStorageFormat(text);
 
       await _weekService.addComment(
         widget.week.id,
         widget.article.id,
         formattedText,
       );
-      _commentController.clear();
-      _mentionedUsers.clear(); // Clear mentioned users after sending
+      _mentionController.clear();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -179,312 +76,6 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
     } finally {
       if (mounted) {
         setState(() => _sending = false);
-      }
-    }
-  }
-
-  // Show reply dialog
-  void _showReplyDialog(Comment parentComment) {
-    final replyController = TextEditingController();
-    bool sending = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 16,
-            right: 16,
-            top: 16,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.reply, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${parentComment.displayName} kullanıcısına yanıt',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Original comment (quoted)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.getTextTertiary(context).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border(
-                    left: BorderSide(
-                      color: AppTheme.primaryColor,
-                      width: 3,
-                    ),
-                  ),
-                ),
-                child: Text(
-                  parentComment.text,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppTheme.getTextSecondary(context),
-                  ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Reply input
-              TextField(
-                controller: replyController,
-                decoration: const InputDecoration(
-                  hintText: 'Yanıtınızı yazın...',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-                autofocus: true,
-              ),
-              const SizedBox(height: 12),
-              // Send button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: sending
-                      ? null
-                      : () async {
-                          final text = replyController.text.trim();
-                          if (text.isEmpty) return;
-
-                          setState(() => sending = true);
-
-                          try {
-                            await _weekService.addReply(
-                              widget.week.id,
-                              widget.article.id,
-                              parentComment.id,
-                              parentComment.depth,
-                              text,
-                            );
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Yanıt gönderildi!'),
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Hata: $e')),
-                              );
-                            }
-                          } finally {
-                            if (mounted) {
-                              setState(() => sending = false);
-                            }
-                          }
-                        },
-                  icon: sending
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.send),
-                  label: const Text('Gönder'),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // v4.0: Show edit dialog
-  void _showEditDialog(Comment comment) {
-    final editController = TextEditingController(text: comment.text);
-    bool saving = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 16,
-            right: 16,
-            top: 16,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.edit, size: 20),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Yorumu Düzenle',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Edit input
-              TextField(
-                controller: editController,
-                decoration: const InputDecoration(
-                  hintText: 'Yorumunuzu düzenleyin...',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 5,
-                autofocus: true,
-              ),
-              const SizedBox(height: 12),
-              // Save button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: saving
-                      ? null
-                      : () async {
-                          final newText = editController.text.trim();
-                          if (newText.isEmpty) return;
-                          if (newText == comment.text) {
-                            Navigator.pop(context);
-                            return;
-                          }
-
-                          setState(() => saving = true);
-
-                          try {
-                            await _weekService.editComment(
-                              widget.week.id,
-                              widget.article.id,
-                              comment.id,
-                              newText,
-                            );
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Yorum düzenlendi!'),
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Hata: $e')),
-                              );
-                            }
-                          } finally {
-                            if (mounted) {
-                              setState(() => saving = false);
-                            }
-                          }
-                        },
-                  icon: saving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.save),
-                  label: const Text('Kaydet'),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // v4.0: Show delete confirmation dialog
-  void _showDeleteDialog(Comment comment) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Yorumu Sil'),
-        content: const Text(
-          'Bu yorumu silmek istediginize emin misiniz?\n\nYanitlar korunacak ancak yorumunuz "[Bu yorum silindi]" olarak gosterilecek.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Iptal'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                await _weekService.deleteComment(
-                  widget.week.id,
-                  widget.article.id,
-                  comment.id,
-                );
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Yorum silindi')),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Hata: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text(
-              'Sil',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _openArticleLink() async {
-    final url = Uri.parse(widget.article.link);
-    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Link açılamadı')),
-        );
       }
     }
   }
@@ -544,149 +135,12 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
       body: Column(
         children: [
           // Instagram-style article post card
-          _buildArticlePostCard(),
+          ArticlePostCard(week: widget.week, article: widget.article),
           // Comments section
           Expanded(child: _buildCommentsSection()),
           // Comment input (only in discussion phase)
           if (widget.week.phase == WeekPhase.discussion) _buildCommentInput(),
         ],
-      ),
-    );
-  }
-
-  Widget _buildArticlePostCard() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primaryColor.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Trophy badge
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.emoji_events,
-                        color: AppTheme.accentColor,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'Kazanan Makale',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Title
-            Text(
-              widget.article.title,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                height: 1.3,
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Summary
-            Text(
-              widget.article.summary,
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.white.withOpacity(0.9),
-                height: 1.5,
-              ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 16),
-            // Read article button
-            OutlinedButton.icon(
-              onPressed: _openArticleLink,
-              icon: const Icon(Icons.open_in_new, size: 18),
-              label: const Text('Makaleyi Oku'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white, width: 2),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Footer info
-            Row(
-              children: [
-                Icon(
-                  Icons.how_to_vote,
-                  color: Colors.white.withOpacity(0.7),
-                  size: 16,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '${widget.article.voteCount} Oy',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Icon(
-                  widget.week.phase == WeekPhase.discussion
-                      ? Icons.chat_bubble
-                      : Icons.lock,
-                  color: Colors.white.withOpacity(0.7),
-                  size: 16,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  widget.week.phase == WeekPhase.discussion
-                      ? 'Tartışma Açık'
-                      : 'Kapatıldı',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -720,7 +174,10 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
             ),
             // Sorting tabs
             SliverToBoxAdapter(
-              child: _buildSortingTabs(),
+              child: SortTabs(
+                sortByScore: _sortByScore,
+                onSortChanged: (value) => setState(() => _sortByScore = value),
+              ),
             ),
             // Comments list
             if (flattenedComments.isEmpty)
@@ -736,17 +193,35 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
                       final commentNode = flattenedComments[index];
                       final currentUid = FirebaseAuth.instance.currentUser?.uid;
                       final isOwnComment = commentNode.comment.uid == currentUid;
-                      return _CommentCard(
+                      return CommentCard(
                         commentNode: commentNode,
                         week: widget.week,
                         articleId: widget.article.id,
-                        onReply: () => _showReplyDialog(commentNode.comment),
+                        onReply: () => DiscussionDialogs.showReplyDialog(
+                          context: context,
+                          parentComment: commentNode.comment,
+                          weekId: widget.week.id,
+                          articleId: widget.article.id,
+                          weekService: _weekService,
+                        ),
                         isOwnComment: isOwnComment,
                         onEdit: isOwnComment
-                            ? () => _showEditDialog(commentNode.comment)
+                            ? () => DiscussionDialogs.showEditDialog(
+                                  context: context,
+                                  comment: commentNode.comment,
+                                  weekId: widget.week.id,
+                                  articleId: widget.article.id,
+                                  weekService: _weekService,
+                                )
                             : null,
                         onDelete: isOwnComment
-                            ? () => _showDeleteDialog(commentNode.comment)
+                            ? () => DiscussionDialogs.showDeleteDialog(
+                                  context: context,
+                                  comment: commentNode.comment,
+                                  weekId: widget.week.id,
+                                  articleId: widget.article.id,
+                                  weekService: _weekService,
+                                )
                             : null,
                       );
                     },
@@ -787,72 +262,10 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
             child: Container(
               margin: const EdgeInsets.only(left: 12),
               height: 1,
-              color: AppTheme.getTextTertiary(context).withOpacity(0.3),
+              color: AppTheme.getTextTertiary(context).withValues(alpha: 0.3),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSortingTabs() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          _buildSortTab(
-            icon: Icons.local_fire_department,
-            label: 'Popüler',
-            isSelected: _sortByScore,
-            onTap: () => setState(() => _sortByScore = true),
-          ),
-          const SizedBox(width: 12),
-          _buildSortTab(
-            icon: Icons.access_time,
-            label: 'Yeni',
-            isSelected: !_sortByScore,
-            onTap: () => setState(() => _sortByScore = false),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSortTab({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppTheme.primaryColor
-              : AppTheme.getTextTertiary(context).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : AppTheme.getTextSecondary(context),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.white : AppTheme.getTextSecondary(context),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -894,7 +307,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Mention suggestions
-        if (_showMentionSuggestions) _buildMentionSuggestions(),
+        MentionSuggestions(controller: _mentionController),
         // Comment input
         Container(
           padding: const EdgeInsets.all(16),
@@ -950,506 +363,6 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildMentionSuggestions() {
-    if (_mentionSuggestions.isEmpty && _mentionQuery.isNotEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppTheme.getSurfaceColor(context),
-          border: Border(
-            top: BorderSide(color: AppTheme.getTextTertiary(context).withValues(alpha: 0.2)),
-          ),
-        ),
-        child: Text(
-          'Kullanıcı bulunamadı',
-          style: TextStyle(
-            color: AppTheme.getTextSecondary(context),
-            fontSize: 14,
-          ),
-        ),
-      );
-    }
-
-    if (_mentionSuggestions.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppTheme.getSurfaceColor(context),
-          border: Border(
-            top: BorderSide(color: AppTheme.getTextTertiary(context).withValues(alpha: 0.2)),
-          ),
-        ),
-        child: Text(
-          'Etiketlemek için yazmaya başlayın...',
-          style: TextStyle(
-            color: AppTheme.getTextSecondary(context),
-            fontSize: 14,
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 200),
-      decoration: BoxDecoration(
-        color: AppTheme.getSurfaceColor(context),
-        border: Border(
-          top: BorderSide(color: AppTheme.getTextTertiary(context).withValues(alpha: 0.2)),
-        ),
-      ),
-      child: ListView.builder(
-        shrinkWrap: true,
-        itemCount: _mentionSuggestions.length,
-        itemBuilder: (context, index) {
-          final user = _mentionSuggestions[index];
-          return ListTile(
-            leading: CircleAvatar(
-              radius: 18,
-              backgroundColor: _getAvatarColor(user.uid),
-              child: Text(
-                user.displayName.isNotEmpty
-                    ? user.displayName[0].toUpperCase()
-                    : '?',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            title: Text(
-              user.displayName,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text(
-              user.email,
-              style: TextStyle(
-                fontSize: 12,
-                color: AppTheme.getTextSecondary(context),
-              ),
-            ),
-            dense: true,
-            onTap: () => _insertMention(user),
-          );
-        },
-      ),
-    );
-  }
-
-  Color _getAvatarColor(String uid) {
-    final colors = [
-      AppTheme.primaryColor,
-      AppTheme.secondaryColor,
-      const Color(0xFF9B59B6),
-      const Color(0xFF3498DB),
-      const Color(0xFFE74C3C),
-      const Color(0xFF2ECC71),
-      const Color(0xFFF39C12),
-      const Color(0xFF1ABC9C),
-    ];
-    return colors[uid.hashCode.abs() % colors.length];
-  }
-}
-
-class _CommentCard extends StatelessWidget {
-  final CommentTree commentNode;
-  final Week week;
-  final String articleId;
-  final VoidCallback onReply;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
-  final bool isOwnComment;
-
-  const _CommentCard({
-    required this.commentNode,
-    required this.week,
-    required this.articleId,
-    required this.onReply,
-    this.onEdit,
-    this.onDelete,
-    this.isOwnComment = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final comment = commentNode.comment;
-    final depth = comment.depth;
-    final leftPadding = depth * 20.0; // 20px per level
-    final maxDepth = 5; // Limit indentation
-
-    // v4.0: Show deleted comment placeholder
-    if (comment.isDeleted) {
-      return Padding(
-        padding: EdgeInsets.only(
-          bottom: 16,
-          left: depth > maxDepth ? maxDepth * 20.0 : leftPadding,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: AppTheme.getTextTertiary(context),
-              child: const Icon(Icons.person_off, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.getTextTertiary(context).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '[Bu yorum silindi]',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontStyle: FontStyle.italic,
-                    color: AppTheme.getTextTertiary(context),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: 16,
-        left: depth > maxDepth ? maxDepth * 20.0 : leftPadding,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Avatar
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: _getAvatarColor(comment.uid),
-            child: Text(
-              comment.displayName.isNotEmpty
-                  ? comment.displayName[0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Comment content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Name, time, and edit indicator
-                Row(
-                  children: [
-                    Flexible(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  ProfileScreen(userId: comment.uid),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          comment.displayName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _formatTime(comment.createdAt),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.getTextTertiary(context),
-                      ),
-                    ),
-                    // v4.0: Edited indicator
-                    if (comment.isEdited) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        '(düzenlendi)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontStyle: FontStyle.italic,
-                          color: AppTheme.getTextTertiary(context),
-                        ),
-                      ),
-                    ],
-                    const Spacer(),
-                    // v4.0: Edit button for own comments
-                    if (isOwnComment && week.phase == WeekPhase.discussion && onEdit != null)
-                      GestureDetector(
-                        onTap: onEdit,
-                        child: Icon(
-                          Icons.edit_outlined,
-                          size: 16,
-                          color: AppTheme.getTextTertiary(context),
-                        ),
-                      ),
-                    // v4.0: Delete button for own comments
-                    if (isOwnComment && week.phase == WeekPhase.discussion && onDelete != null) ...[
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: onDelete,
-                        child: Icon(
-                          Icons.delete_outline,
-                          size: 16,
-                          color: AppTheme.getTextTertiary(context),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 4),
-                // Comment text with mentions
-                _buildCommentText(context, comment.text),
-                const SizedBox(height: 6),
-                // Vote and reply buttons
-                Row(
-                  children: [
-                    // Upvote/Downvote buttons
-                    _VoteButtons(
-                      weekId: week.id,
-                      articleId: articleId,
-                      comment: comment,
-                    ),
-                    const SizedBox(width: 16),
-                    // Reply button (only in discussion phase)
-                    if (week.phase == WeekPhase.discussion)
-                      TextButton.icon(
-                        onPressed: onReply,
-                        icon: Icon(
-                          Icons.reply,
-                          size: 16,
-                          color: AppTheme.primaryColor,
-                        ),
-                        label: Text(
-                          'Yanıtla',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.primaryColor,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(0, 0),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),
-                    if (comment.replyCount > 0) ...[
-                      const SizedBox(width: 12),
-                      Text(
-                        '${comment.replyCount} yanıt',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.getTextTertiary(context),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCommentText(BuildContext context, String text) {
-    final segments = MentionService.parseTextSegments(text);
-
-    // If no segments parsed, show display text (with userId stripped)
-    if (segments.isEmpty) {
-      return Text(
-        MentionService.getDisplayText(text),
-        style: TextStyle(
-          fontSize: 15,
-          color: AppTheme.getTextPrimary(context),
-          height: 1.4,
-        ),
-      );
-    }
-
-    return RichText(
-      text: TextSpan(
-        style: TextStyle(
-          fontSize: 15,
-          color: AppTheme.getTextPrimary(context),
-          height: 1.4,
-        ),
-        children: segments.map((segment) {
-          if (segment.isMention) {
-            return WidgetSpan(
-              child: GestureDetector(
-                onTap: () {
-                  if (segment.userId != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            ProfileScreen(userId: segment.userId),
-                      ),
-                    );
-                  }
-                },
-                child: Text(
-                  segment.text,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: AppTheme.primaryColor,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            );
-          } else {
-            return TextSpan(text: segment.text);
-          }
-        }).toList(),
-      ),
-    );
-  }
-
-  Color _getAvatarColor(String uid) {
-    // Generate a consistent color based on user ID
-    final colors = [
-      AppTheme.primaryColor,
-      AppTheme.secondaryColor,
-      const Color(0xFF9B59B6), // Purple
-      const Color(0xFF3498DB), // Blue
-      const Color(0xFFE74C3C), // Red
-      const Color(0xFF2ECC71), // Green
-      const Color(0xFFF39C12), // Orange
-      const Color(0xFF1ABC9C), // Turquoise
-    ];
-
-    final hash = uid.hashCode.abs();
-    return colors[hash % colors.length];
-  }
-
-  String _formatTime(DateTime time) {
-    final now = DateTime.now();
-    final diff = now.difference(time);
-
-    if (diff.inMinutes < 1) {
-      return 'Az önce';
-    } else if (diff.inHours < 1) {
-      return '${diff.inMinutes} dakika önce';
-    } else if (diff.inDays < 1) {
-      return '${diff.inHours} saat önce';
-    } else if (diff.inDays < 7) {
-      return '${diff.inDays} gün önce';
-    } else {
-      return '${time.day}/${time.month}/${time.year}';
-    }
-  }
-}
-
-// Vote buttons widget
-class _VoteButtons extends StatelessWidget {
-  final String weekId;
-  final String articleId;
-  final Comment comment;
-
-  const _VoteButtons({
-    required this.weekId,
-    required this.articleId,
-    required this.comment,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final voteService = VoteService();
-
-    return StreamBuilder<VoteType?>(
-      stream: voteService.getUserVote(
-        weekId: weekId,
-        articleId: articleId,
-        commentId: comment.id,
-      ),
-      builder: (context, snapshot) {
-        final userVote = snapshot.data;
-        final hasUpvoted = userVote == VoteType.up;
-        final hasDownvoted = userVote == VoteType.down;
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Upvote button
-            InkWell(
-              onTap: () {
-                voteService.voteComment(
-                  weekId: weekId,
-                  articleId: articleId,
-                  commentId: comment.id,
-                  type: VoteType.up,
-                );
-              },
-              child: Icon(
-                hasUpvoted ? Icons.arrow_upward : Icons.arrow_upward_outlined,
-                size: 20,
-                color: hasUpvoted
-                    ? AppTheme.primaryColor
-                    : AppTheme.getTextSecondary(context),
-              ),
-            ),
-            const SizedBox(width: 6),
-            // Score
-            Text(
-              comment.score.toString(),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: hasUpvoted
-                    ? AppTheme.primaryColor
-                    : hasDownvoted
-                        ? AppTheme.errorColor
-                        : AppTheme.getTextPrimary(context),
-              ),
-            ),
-            const SizedBox(width: 6),
-            // Downvote button
-            InkWell(
-              onTap: () {
-                voteService.voteComment(
-                  weekId: weekId,
-                  articleId: articleId,
-                  commentId: comment.id,
-                  type: VoteType.down,
-                );
-              },
-              child: Icon(
-                hasDownvoted
-                    ? Icons.arrow_downward
-                    : Icons.arrow_downward_outlined,
-                size: 20,
-                color: hasDownvoted
-                    ? AppTheme.errorColor
-                    : AppTheme.getTextSecondary(context),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }

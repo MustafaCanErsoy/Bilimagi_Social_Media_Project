@@ -7,6 +7,9 @@ import '../services/week_service.dart';
 import '../services/follow_service.dart';
 import '../services/auth_service.dart';
 import '../core/theme.dart';
+import '../core/avatar_colors.dart';
+import '../widgets/section_header.dart';
+import '../widgets/empty_state_card.dart';
 import 'discussion_screen.dart';
 import 'week_screen.dart';
 import 'profile_screen.dart';
@@ -70,7 +73,7 @@ class _ExploreTab extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         // Active Discussions Section
-        _buildSectionHeader(
+        const SectionHeader(
           icon: Icons.forum,
           title: 'Aktif Tartışmalar',
           subtitle: 'Şu anda tartışılan makaleler',
@@ -80,54 +83,13 @@ class _ExploreTab extends StatelessWidget {
         const SizedBox(height: 24),
 
         // Voting This Week Section
-        _buildSectionHeader(
+        const SectionHeader(
           icon: Icons.how_to_vote,
           title: 'Bu Hafta Oylama',
           subtitle: 'Oyunu kullan, kazananı belirle',
         ),
         const SizedBox(height: 12),
         _VotingWeeksSection(),
-      ],
-    );
-  }
-
-  Widget _buildSectionHeader({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: AppTheme.primaryColor, size: 24),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppTheme.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -142,7 +104,7 @@ class _FollowingTab extends StatelessWidget {
     final currentUid = authService.currentUser?.uid;
 
     if (currentUid == null) {
-      return _buildEmptyState(
+      return const EmptyStateScreen(
         icon: Icons.login,
         title: 'Giriş yapın',
         message: 'Takip ettiğiniz kişilerin aktivitelerini görmek için giriş yapın',
@@ -153,7 +115,7 @@ class _FollowingTab extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         // Following Activity
-        _buildSectionHeader(
+        const SectionHeader(
           icon: Icons.people,
           title: 'Takip Edilenler',
           subtitle: 'Takip ettiğiniz kişiler',
@@ -163,7 +125,7 @@ class _FollowingTab extends StatelessWidget {
         const SizedBox(height: 24),
 
         // Suggested Users
-        _buildSectionHeader(
+        const SectionHeader(
           icon: Icons.person_add,
           title: 'Önerilen Kullanıcılar',
           subtitle: 'Yeni kişiler keşfet',
@@ -171,80 +133,6 @@ class _FollowingTab extends StatelessWidget {
         const SizedBox(height: 12),
         _SuggestedUsersSection(currentUid: currentUid),
       ],
-    );
-  }
-
-  Widget _buildSectionHeader({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: AppTheme.primaryColor, size: 24),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppTheme.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState({
-    required IconData icon,
-    required String title,
-    required String message,
-  }) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 64, color: AppTheme.textTertiary),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              style: TextStyle(color: AppTheme.textTertiary),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -273,30 +161,10 @@ class _FollowingListSection extends StatelessWidget {
         final following = snapshot.data ?? [];
 
         if (following.isEmpty) {
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  Icon(Icons.person_search, size: 48, color: AppTheme.textTertiary),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Henüz kimseyi takip etmiyorsunuz',
-                    style: TextStyle(color: AppTheme.textSecondary),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Topluluklardaki tartışmalara katılın ve ilginç kullanıcıları keşfedin!',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppTheme.textTertiary,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
+          return const EmptyStateCard(
+            icon: Icons.person_search,
+            message: 'Henüz kimseyi takip etmiyorsunuz',
+            submessage: 'Topluluklardaki tartışmalara katılın ve ilginç kullanıcıları keşfedin!',
           );
         }
 
@@ -315,17 +183,6 @@ class _FollowingUserCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatarColors = [
-      AppTheme.primaryColor,
-      AppTheme.secondaryColor,
-      const Color(0xFF9B59B6),
-      const Color(0xFF3498DB),
-      const Color(0xFFE74C3C),
-      const Color(0xFF2ECC71),
-      const Color(0xFFF39C12),
-      const Color(0xFF1ABC9C),
-    ];
-
     final color = avatarColors[user.avatarColorIndex];
 
     return Card(
@@ -392,21 +249,9 @@ class _SuggestedUsersSection extends StatelessWidget {
         final suggestions = snapshot.data ?? [];
 
         if (suggestions.isEmpty) {
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  Icon(Icons.check_circle, size: 48, color: AppTheme.textTertiary),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Şimdilik öneri yok',
-                    style: TextStyle(color: AppTheme.textSecondary),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
+          return const EmptyStateCard(
+            icon: Icons.check_circle,
+            message: 'Şimdilik öneri yok',
           );
         }
 
@@ -426,17 +271,6 @@ class _SuggestedUserCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final followService = FollowService();
-    final avatarColors = [
-      AppTheme.primaryColor,
-      AppTheme.secondaryColor,
-      const Color(0xFF9B59B6),
-      const Color(0xFF3498DB),
-      const Color(0xFFE74C3C),
-      const Color(0xFF2ECC71),
-      const Color(0xFFF39C12),
-      const Color(0xFF1ABC9C),
-    ];
-
     final color = avatarColors[user.avatarColorIndex];
 
     return Card(
@@ -531,7 +365,7 @@ class _ActiveDiscussionsSection extends StatelessWidget {
         final discussions = snapshot.data ?? [];
 
         if (discussions.isEmpty) {
-          return _buildEmptyState(
+          return const EmptyStateCard(
             icon: Icons.chat_bubble_outline,
             message: 'Henüz aktif tartışma yok',
           );
@@ -551,25 +385,6 @@ class _ActiveDiscussionsSection extends StatelessWidget {
           }).toList(),
         );
       },
-    );
-  }
-
-  Widget _buildEmptyState({required IconData icon, required String message}) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            Icon(icon, size: 48, color: AppTheme.textTertiary),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              style: TextStyle(color: AppTheme.textSecondary),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -598,7 +413,7 @@ class _VotingWeeksSection extends StatelessWidget {
         final votingWeeks = snapshot.data ?? [];
 
         if (votingWeeks.isEmpty) {
-          return _buildEmptyState(
+          return const EmptyStateCard(
             icon: Icons.how_to_vote_outlined,
             message: 'Şu anda oylama yapılan topluluk yok',
           );
@@ -611,25 +426,6 @@ class _VotingWeeksSection extends StatelessWidget {
           }).toList(),
         );
       },
-    );
-  }
-
-  Widget _buildEmptyState({required IconData icon, required String message}) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            Icon(icon, size: 48, color: AppTheme.textTertiary),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              style: TextStyle(color: AppTheme.textSecondary),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

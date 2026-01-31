@@ -3,79 +3,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/week.dart';
 import '../models/article.dart';
 import '../models/community.dart';
+import '../models/comment.dart';
 import 'profile_service.dart';
-import 'notification_service.dart';
-import 'mention_service.dart';
 
-class Comment {
-  final String id;
-  final String uid;
-  final String displayName;
-  final String text;
-  final DateTime createdAt;
-
-  // v2.0: Nested comments fields
-  final String? parentId; // null = top-level comment
-  final int depth; // 0 = top-level, 1+ = nested
-  final int replyCount; // number of direct replies
-
-  // v2.0: Voting fields
-  final int upvoteCount;
-  final int downvoteCount;
-  final int score; // upvoteCount - downvoteCount
-
-  // v4.0: Edit fields
-  final bool isEdited;
-  final DateTime? editedAt;
-
-  // v4.0: Delete field (soft delete)
-  final bool isDeleted;
-
-  Comment({
-    required this.id,
-    required this.uid,
-    required this.displayName,
-    required this.text,
-    required this.createdAt,
-    this.parentId,
-    this.depth = 0,
-    this.replyCount = 0,
-    this.upvoteCount = 0,
-    this.downvoteCount = 0,
-    this.score = 0,
-    this.isEdited = false,
-    this.editedAt,
-    this.isDeleted = false,
-  });
-
-  factory Comment.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return Comment(
-      id: doc.id,
-      uid: data['uid'] ?? '',
-      displayName: data['displayName'] ?? 'Anonim',
-      text: data['text'] ?? '',
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      parentId: data['parentId'],
-      depth: data['depth'] ?? 0,
-      replyCount: data['replyCount'] ?? 0,
-      upvoteCount: data['upvoteCount'] ?? 0,
-      downvoteCount: data['downvoteCount'] ?? 0,
-      score: data['score'] ?? 0,
-      isEdited: data['isEdited'] ?? false,
-      editedAt: (data['editedAt'] as Timestamp?)?.toDate(),
-      isDeleted: data['isDeleted'] ?? false,
-    );
-  }
-}
+// Re-export Comment for backward compatibility
+export '../models/comment.dart' show Comment;
 
 class WeekService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final _profileService = ProfileService();
-  final _notificationService = NotificationService();
 
-  // Get week by ID (stream for realtime phase updates)
+  // ==================== WEEK OPERATIONS ====================
+
+  /// Get week by ID (stream for realtime phase updates)
   Stream<Week?> getWeek(String weekId) {
     return _db.collection('weeks').doc(weekId).snapshots().map((doc) {
       if (doc.exists) {
@@ -85,7 +26,23 @@ class WeekService {
     });
   }
 
-  // Get articles for a week (stream)
+  /// Get week once (for saved articles navigation)
+  Future<Week?> getWeekOnce(String weekId) async {
+    final doc = await _db.collection('weeks').doc(weekId).get();
+    if (!doc.exists) return null;
+    return Week.fromFirestore(doc);
+  }
+
+  /// Change week phase (admin only)
+  Future<void> changePhase(String weekId, WeekPhase newPhase) async {
+    await _db.collection('weeks').doc(weekId).update({
+      'phase': Week.phaseToString(newPhase),
+    });
+  }
+
+  // ==================== ARTICLE OPERATIONS ====================
+
+  /// Get articles for a week (stream)
   Stream<List<Article>> getArticles(String weekId) {
     return _db
         .collection('weeks')
@@ -97,11 +54,54 @@ class WeekService {
     });
   }
 
-  // Get vote counts for all articles in a week (stream)
+  /// Get article once (for saved articles navigation)
+  Future<Article?> getArticleOnce(String weekId, String articleId) async {
+    final doc = await _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .get();
+    if (!doc.exists) return null;
+    return Article.fromFirestore(doc);
+  }
+
+  /// Get winning article (most votes)
+  Future<Article?> getWinningArticle(String weekId) async {
+    final articlesSnapshot = await _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .get();
+
+    Article? winner;
+    int maxVotes = -1;
+
+    for (final articleDoc in articlesSnapshot.docs) {
+      final votesSnapshot = await _db
+          .collection('weeks')
+          .doc(weekId)
+          .collection('articles')
+          .doc(articleDoc.id)
+          .collection('votes')
+          .get();
+
+      final voteCount = votesSnapshot.docs.length;
+      if (voteCount > maxVotes) {
+        maxVotes = voteCount;
+        winner = Article.fromFirestore(articleDoc);
+        winner.voteCount = voteCount;
+      }
+    }
+
+    return winner;
+  }
+
+  // ==================== VOTING OPERATIONS ====================
+
+  /// Get vote counts for all articles in a week (stream)
   Stream<Map<String, int>> getVoteCounts(String weekId) {
-    // Listen to week document changes (triggered by lastVoteAt updates)
     return _db.collection('weeks').doc(weekId).snapshots().asyncMap((_) async {
-      // Get all articles in this week
       final articlesSnapshot = await _db
           .collection('weeks')
           .doc(weekId)
@@ -110,7 +110,6 @@ class WeekService {
 
       final Map<String, int> voteCounts = {};
 
-      // Count votes for each article
       for (final articleDoc in articlesSnapshot.docs) {
         final votesSnapshot = await _db
             .collection('weeks')
@@ -126,7 +125,7 @@ class WeekService {
     });
   }
 
-  // Get user's current vote in a week
+  /// Get user's current vote in a week
   Future<String?> getUserVote(String weekId) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return null;
@@ -154,7 +153,7 @@ class WeekService {
     return null;
   }
 
-  // Cast a vote (removes previous vote if exists)
+  /// Cast a vote (removes previous vote if exists)
   Future<void> castVote(String weekId, String articleId) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw Exception('User not logged in');
@@ -206,200 +205,14 @@ class WeekService {
     await _profileService.incrementStats(votes: 1);
   }
 
-  // Change week phase (admin only)
-  Future<void> changePhase(String weekId, WeekPhase newPhase) async {
-    await _db.collection('weeks').doc(weekId).update({
-      'phase': Week.phaseToString(newPhase),
-    });
-  }
+  // ==================== FEED QUERIES ====================
 
-  // Get winning article (most votes)
-  Future<Article?> getWinningArticle(String weekId) async {
-    final articlesSnapshot = await _db
-        .collection('weeks')
-        .doc(weekId)
-        .collection('articles')
-        .get();
-
-    Article? winner;
-    int maxVotes = -1;
-
-    for (final articleDoc in articlesSnapshot.docs) {
-      final votesSnapshot = await _db
-          .collection('weeks')
-          .doc(weekId)
-          .collection('articles')
-          .doc(articleDoc.id)
-          .collection('votes')
-          .get();
-
-      final voteCount = votesSnapshot.docs.length;
-      if (voteCount > maxVotes) {
-        maxVotes = voteCount;
-        winner = Article.fromFirestore(articleDoc);
-        winner.voteCount = voteCount;
-      }
-    }
-
-    return winner;
-  }
-
-  // Get comments for an article (stream)
-  Stream<List<Comment>> getComments(String weekId, String articleId) {
-    return _db
-        .collection('weeks')
-        .doc(weekId)
-        .collection('articles')
-        .doc(articleId)
-        .collection('comments')
-        .orderBy('createdAt', descending: false)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) => Comment.fromFirestore(doc)).toList();
-    });
-  }
-
-  // Add a comment
-  Future<void> addComment(String weekId, String articleId, String text) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    // Get user's display name from profile
-    final userDoc = await _db.collection('users').doc(user.uid).get();
-    final displayName = userDoc.data()?['displayName'] ?? 'Anonim';
-
-    final newCommentRef = await _db
-        .collection('weeks')
-        .doc(weekId)
-        .collection('articles')
-        .doc(articleId)
-        .collection('comments')
-        .add({
-      'uid': user.uid,
-      'displayName': displayName,
-      'text': text,
-      'createdAt': FieldValue.serverTimestamp(),
-      'depth': 0, // Top-level comment
-      'replyCount': 0,
-      'upvoteCount': 0,
-      'downvoteCount': 0,
-      'score': 0,
-    });
-
-    // Increment user comment stats
-    await _profileService.incrementStats(comments: 1);
-
-    // Send mention notifications
-    try {
-      final mentionedUids = MentionService.parseMentions(text);
-      for (final mentionedUid in mentionedUids) {
-        if (mentionedUid != user.uid) {
-          await _notificationService.createMentionNotification(
-            targetUid: mentionedUid,
-            fromDisplayName: displayName,
-            weekId: weekId,
-            articleId: articleId,
-            commentId: newCommentRef.id,
-            preview: MentionService.getDisplayText(text.length > 100 ? '${text.substring(0, 100)}...' : text),
-          );
-        }
-      }
-    } catch (e) {
-      print('Mention notification error: $e');
-    }
-  }
-
-  // v2.0: Add reply to a comment
-  Future<void> addReply(
-    String weekId,
-    String articleId,
-    String parentCommentId,
-    int parentDepth,
-    String text,
-  ) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    // Get user's display name from profile
-    final userDoc = await _db.collection('users').doc(user.uid).get();
-    final displayName = userDoc.data()?['displayName'] ?? 'Anonim';
-
-    final commentsRef = _db
-        .collection('weeks')
-        .doc(weekId)
-        .collection('articles')
-        .doc(articleId)
-        .collection('comments');
-
-    // Add the reply
-    final newCommentRef = await commentsRef.add({
-      'uid': user.uid,
-      'displayName': displayName,
-      'text': text,
-      'createdAt': FieldValue.serverTimestamp(),
-      'parentId': parentCommentId,
-      'depth': parentDepth + 1, // One level deeper than parent
-      'replyCount': 0,
-      'upvoteCount': 0,
-      'downvoteCount': 0,
-      'score': 0,
-    });
-
-    // Increment parent's reply count
-    await commentsRef.doc(parentCommentId).update({
-      'replyCount': FieldValue.increment(1),
-    });
-
-    // Increment user comment stats
-    await _profileService.incrementStats(comments: 1);
-
-    // Send reply notification to parent comment author
-    try {
-      final parentDoc = await commentsRef.doc(parentCommentId).get();
-      if (parentDoc.exists) {
-        final parentUid = parentDoc.data()?['uid'] as String?;
-        if (parentUid != null && parentUid != user.uid) {
-          await _notificationService.createReplyNotification(
-            targetUid: parentUid,
-            fromDisplayName: displayName,
-            weekId: weekId,
-            articleId: articleId,
-            commentId: newCommentRef.id,
-            preview: MentionService.getDisplayText(text.length > 100 ? '${text.substring(0, 100)}...' : text),
-          );
-        }
-      }
-    } catch (e) {
-      print('Reply notification error: $e');
-    }
-
-    // Send mention notifications
-    try {
-      final mentionedUids = MentionService.parseMentions(text);
-      for (final mentionedUid in mentionedUids) {
-        if (mentionedUid != user.uid) {
-          await _notificationService.createMentionNotification(
-            targetUid: mentionedUid,
-            fromDisplayName: displayName,
-            weekId: weekId,
-            articleId: articleId,
-            commentId: newCommentRef.id,
-            preview: MentionService.getDisplayText(text.length > 100 ? '${text.substring(0, 100)}...' : text),
-          );
-        }
-      }
-    } catch (e) {
-      print('Mention notification error: $e');
-    }
-  }
-
-  // v2.0: Get active discussions (for home feed)
-  // Note: Simplified to avoid composite index requirement
+  /// Get active discussions (for home feed)
   Stream<List<Map<String, dynamic>>> getActiveDiscussions() {
     return _db
         .collection('weeks')
         .where('phase', isEqualTo: 'discussion')
-        .limit(20) // Fetch more, will sort in memory
+        .limit(20)
         .snapshots()
         .asyncMap((weeksSnapshot) async {
       final List<Map<String, dynamic>> results = [];
@@ -431,18 +244,16 @@ class WeekService {
         return weekB.createdAt.compareTo(weekA.createdAt);
       });
 
-      // Return top 10
       return results.take(10).toList();
     });
   }
 
-  // v2.0: Get voting weeks (for home feed)
-  // Note: Simplified to avoid composite index requirement
+  /// Get voting weeks (for home feed)
   Stream<List<Map<String, dynamic>>> getVotingWeeks() {
     return _db
         .collection('weeks')
         .where('phase', isEqualTo: 'voting')
-        .limit(20) // Fetch more, will sort in memory
+        .limit(20)
         .snapshots()
         .asyncMap((weeksSnapshot) async {
       final List<Map<String, dynamic>> results = [];
@@ -469,12 +280,144 @@ class WeekService {
         return weekB.createdAt.compareTo(weekA.createdAt);
       });
 
-      // Return top 10
       return results.take(10).toList();
     });
   }
 
-  // v4.0: Edit a comment
+  // ==================== COMMENT OPERATIONS (Delegated to CommentService) ====================
+  // These methods are kept for backward compatibility but delegate to CommentService
+
+  /// Get comments for an article (stream)
+  Stream<List<Comment>> getComments(String weekId, String articleId) {
+    return _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments')
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => Comment.fromFirestore(doc)).toList();
+    });
+  }
+
+  /// Add a comment - delegates to CommentService
+  Future<void> addComment(String weekId, String articleId, String text) async {
+    // Import and use CommentService inline to avoid circular dependency
+    final commentService = _CommentServiceDelegate();
+    await commentService.addComment(weekId, articleId, text);
+  }
+
+  /// Add reply - delegates to CommentService
+  Future<void> addReply(
+    String weekId,
+    String articleId,
+    String parentCommentId,
+    int parentDepth,
+    String text,
+  ) async {
+    final commentService = _CommentServiceDelegate();
+    await commentService.addReply(weekId, articleId, parentCommentId, parentDepth, text);
+  }
+
+  /// Edit comment - delegates to CommentService
+  Future<void> editComment(
+    String weekId,
+    String articleId,
+    String commentId,
+    String newText,
+  ) async {
+    final commentService = _CommentServiceDelegate();
+    await commentService.editComment(weekId, articleId, commentId, newText);
+  }
+
+  /// Delete comment - delegates to CommentService
+  Future<void> deleteComment(
+    String weekId,
+    String articleId,
+    String commentId,
+  ) async {
+    final commentService = _CommentServiceDelegate();
+    await commentService.deleteComment(weekId, articleId, commentId);
+  }
+}
+
+// Private delegate class to avoid circular import
+// This replicates CommentService logic inline
+class _CommentServiceDelegate {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final _profileService = ProfileService();
+
+  Future<void> addComment(String weekId, String articleId, String text) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
+    final userDoc = await _db.collection('users').doc(user.uid).get();
+    final displayName = userDoc.data()?['displayName'] ?? 'Anonim';
+
+    await _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments')
+        .add({
+      'uid': user.uid,
+      'displayName': displayName,
+      'text': text,
+      'createdAt': FieldValue.serverTimestamp(),
+      'depth': 0,
+      'replyCount': 0,
+      'upvoteCount': 0,
+      'downvoteCount': 0,
+      'score': 0,
+    });
+
+    await _profileService.incrementStats(comments: 1);
+  }
+
+  Future<void> addReply(
+    String weekId,
+    String articleId,
+    String parentCommentId,
+    int parentDepth,
+    String text,
+  ) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
+    final userDoc = await _db.collection('users').doc(user.uid).get();
+    final displayName = userDoc.data()?['displayName'] ?? 'Anonim';
+
+    final commentsRef = _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments');
+
+    await commentsRef.add({
+      'uid': user.uid,
+      'displayName': displayName,
+      'text': text,
+      'createdAt': FieldValue.serverTimestamp(),
+      'parentId': parentCommentId,
+      'depth': parentDepth + 1,
+      'replyCount': 0,
+      'upvoteCount': 0,
+      'downvoteCount': 0,
+      'score': 0,
+    });
+
+    await commentsRef.doc(parentCommentId).update({
+      'replyCount': FieldValue.increment(1),
+    });
+
+    await _profileService.incrementStats(comments: 1);
+  }
+
   Future<void> editComment(
     String weekId,
     String articleId,
@@ -492,14 +435,14 @@ class WeekService {
         .collection('comments')
         .doc(commentId);
 
-    // Verify ownership
     final commentDoc = await commentRef.get();
     if (!commentDoc.exists) throw Exception('Comment not found');
 
     final commentUid = commentDoc.data()?['uid'] as String?;
-    if (commentUid != user.uid) throw Exception('Not authorized to edit this comment');
+    if (commentUid != user.uid) {
+      throw Exception('Not authorized to edit this comment');
+    }
 
-    // Update the comment
     await commentRef.update({
       'text': newText,
       'isEdited': true,
@@ -507,7 +450,6 @@ class WeekService {
     });
   }
 
-  // v4.0: Delete a comment (soft delete)
   Future<void> deleteComment(
     String weekId,
     String articleId,
@@ -524,35 +466,16 @@ class WeekService {
         .collection('comments')
         .doc(commentId);
 
-    // Verify ownership
     final commentDoc = await commentRef.get();
     if (!commentDoc.exists) throw Exception('Comment not found');
 
     final commentUid = commentDoc.data()?['uid'] as String?;
-    if (commentUid != user.uid) throw Exception('Not authorized to delete this comment');
+    if (commentUid != user.uid) {
+      throw Exception('Not authorized to delete this comment');
+    }
 
-    // Soft delete - mark as deleted
     await commentRef.update({
       'isDeleted': true,
     });
-  }
-
-  // v2.0: Get week once (for saved articles navigation)
-  Future<Week?> getWeekOnce(String weekId) async {
-    final doc = await _db.collection('weeks').doc(weekId).get();
-    if (!doc.exists) return null;
-    return Week.fromFirestore(doc);
-  }
-
-  // v2.0: Get article once (for saved articles navigation)
-  Future<Article?> getArticleOnce(String weekId, String articleId) async {
-    final doc = await _db
-        .collection('weeks')
-        .doc(weekId)
-        .collection('articles')
-        .doc(articleId)
-        .get();
-    if (!doc.exists) return null;
-    return Article.fromFirestore(doc);
   }
 }
