@@ -66,6 +66,18 @@ class WeekService {
     return Article.fromFirestore(doc);
   }
 
+  /// Get single article vote count as stream
+  Stream<int> getArticleVoteCount(String weekId, String articleId) {
+    return _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('votes')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
+
   /// Get winning article (most votes)
   Future<Article?> getWinningArticle(String weekId) async {
     final articlesSnapshot = await _db

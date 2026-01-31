@@ -4,6 +4,58 @@ All notable changes to Bilimagi will be documented in this file.
 
 ---
 
+## [v4.2] - 2026-02-01
+
+### Added - UX İyileştirmeleri
+
+**Yeni Paketler:**
+- `share_plus: ^10.0.0` - Native paylaşım desteği
+- `connectivity_plus: ^6.0.0` - İnternet bağlantısı takibi
+
+**Yeni Widgetlar:**
+- `lib/widgets/skeleton_loading.dart` - Shimmer efektli iskelet yükleme
+- `lib/widgets/connectivity_indicator.dart` - Çevrimdışı banner göstergesi
+
+**Bildirimler İyileştirmeleri:**
+- Otomatik okundu işaretleme (ekran açıldığında 1.5s sonra)
+- Zaman bazlı gruplama (Bugün, Dün, Bu Hafta, Bu Ay, Daha Eski)
+- Filtre popup menüsü (Tümü/Takip/Bahsetme/Yanıt/Beğeni)
+
+**Pull to Refresh:**
+- Ana sayfa (Keşfet ve Takip sekmeleri)
+- Bildirimler ekranı
+
+**Skeleton Loading:**
+- Ana sayfa kartları için iskelet yükleme
+- Bildirim listesi için iskelet yükleme
+
+**Paylaş Butonu:**
+- Makale kartlarında paylaş butonu
+- Ana sayfa tartışma kartlarında paylaş ikonu
+
+**Gerçek Zamanlı Sayaçlar:**
+- Yorum sayısı badge (StreamBuilder ile)
+- Oy sayısı badge (StreamBuilder ile)
+
+**Çevrimdışı Göstergesi:**
+- İnternet yokken kırmızı banner
+
+### Changed
+
+**Güncellenen Servisler:**
+- `week_service.dart` - `getArticleVoteCount()` stream metodu eklendi
+- `comment_service.dart` - `getCommentCount()` stream metodu eklendi
+
+**Güncellenen Ekranlar:**
+- `activity_screen.dart` - Filtreleme, gruplama, skeleton loading
+- `home_feed_screen.dart` - Pull to refresh, skeleton loading, gerçek zamanlı sayaçlar
+- `main_navigation_screen.dart` - Connectivity indicator wrapper
+
+**Güncellenen Widgetlar:**
+- `article_post_card.dart` - Paylaş butonu, gerçek zamanlı sayaçlar
+
+---
+
 ## [v4.1] - 2026-02-01
 
 ### Added - AI-Developability Refactoring

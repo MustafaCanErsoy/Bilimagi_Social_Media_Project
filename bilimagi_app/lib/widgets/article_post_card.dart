@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/week.dart';
 import '../models/article.dart';
 import '../core/theme.dart';
+import '../services/comment_service.dart';
+import '../services/week_service.dart';
 
 /// Instagram-style article post card for discussion screen
 class ArticlePostCard extends StatelessWidget {
@@ -24,6 +27,11 @@ class ArticlePostCard extends StatelessWidget {
         );
       }
     }
+  }
+
+  Future<void> _shareArticle() async {
+    final text = '${article.title}\n\n${article.summary}\n\nMakaleyi oku: ${article.link}\n\n#Bilimagi ile paylaşıldı';
+    await Share.share(text, subject: article.title);
   }
 
   @override
@@ -104,44 +112,102 @@ class ArticlePostCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 16),
-            // Read article button
-            OutlinedButton.icon(
-              onPressed: () => _openArticleLink(context),
-              icon: const Icon(Icons.open_in_new, size: 18),
-              label: const Text('Makaleyi Oku'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white, width: 2),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
+            // Action buttons row
+            Row(
+              children: [
+                // Read article button
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openArticleLink(context),
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text('Makaleyi Oku'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white, width: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                const SizedBox(width: 12),
+                // Share button
+                OutlinedButton(
+                  onPressed: _shareArticle,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white, width: 2),
+                    padding: const EdgeInsets.all(12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    minimumSize: const Size(48, 48),
+                  ),
+                  child: const Icon(Icons.share, size: 20),
                 ),
-              ),
+              ],
             ),
             const SizedBox(height: 12),
             // Footer info
             Row(
               children: [
-                Icon(
-                  Icons.how_to_vote,
-                  color: Colors.white.withValues(alpha: 0.7),
-                  size: 16,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '${article.voteCount} Oy',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 13,
-                  ),
+                // Vote count (stream)
+                StreamBuilder<int>(
+                  stream: WeekService().getArticleVoteCount(week.id, article.id),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data ?? article.voteCount;
+                    return Row(
+                      children: [
+                        Icon(
+                          Icons.how_to_vote,
+                          color: Colors.white.withValues(alpha: 0.7),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '$count Oy',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(width: 16),
+                // Comment count (stream)
+                StreamBuilder<int>(
+                  stream: CommentService().getCommentCount(week.id, article.id),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data ?? 0;
+                    return Row(
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          color: Colors.white.withValues(alpha: 0.7),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '$count Yorum',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const Spacer(),
                 Icon(
                   week.phase == WeekPhase.discussion
-                      ? Icons.chat_bubble
+                      ? Icons.lock_open
                       : Icons.lock,
                   color: Colors.white.withValues(alpha: 0.7),
                   size: 16,
@@ -149,8 +215,8 @@ class ArticlePostCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   week.phase == WeekPhase.discussion
-                      ? 'Tartışma Açık'
-                      : 'Kapatıldı',
+                      ? 'Açık'
+                      : 'Kapalı',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 13,

@@ -27,6 +27,24 @@ class CommentService {
     });
   }
 
+  /// Get comment count for an article (stream)
+  Stream<int> getCommentCount(String weekId, String articleId) {
+    return _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments')
+        .snapshots()
+        .map((snapshot) {
+      // Silinen yorumları sayma
+      return snapshot.docs.where((doc) {
+        final data = doc.data();
+        return data['isDeleted'] != true;
+      }).length;
+    });
+  }
+
   /// Add a top-level comment
   Future<void> addComment(String weekId, String articleId, String text) async {
     final user = _auth.currentUser;

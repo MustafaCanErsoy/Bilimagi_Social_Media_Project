@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/week.dart';
 import '../models/article.dart';
 import '../models/community.dart';
@@ -6,10 +7,12 @@ import '../models/user_profile.dart';
 import '../services/week_service.dart';
 import '../services/follow_service.dart';
 import '../services/auth_service.dart';
+import '../services/comment_service.dart';
 import '../core/theme.dart';
 import '../core/avatar_colors.dart';
 import '../widgets/section_header.dart';
 import '../widgets/empty_state_card.dart';
+import '../widgets/skeleton_loading.dart';
 import 'discussion_screen.dart';
 import 'week_screen.dart';
 import 'profile_screen.dart';
@@ -66,38 +69,71 @@ class _HomeFeedScreenState extends State<HomeFeedScreen>
 
 // ==================== EXPLORE TAB ====================
 
-class _ExploreTab extends StatelessWidget {
+class _ExploreTab extends StatefulWidget {
+  @override
+  State<_ExploreTab> createState() => _ExploreTabState();
+}
+
+class _ExploreTabState extends State<_ExploreTab> {
+  Key _refreshKey = UniqueKey();
+
+  Future<void> _onRefresh() async {
+    setState(() {
+      _refreshKey = UniqueKey();
+    });
+    // Görsel geri bildirim için kısa bekleme
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Active Discussions Section
-        const SectionHeader(
-          icon: Icons.forum,
-          title: 'Aktif Tartışmalar',
-          subtitle: 'Şu anda tartışılan makaleler',
-        ),
-        const SizedBox(height: 12),
-        _ActiveDiscussionsSection(),
-        const SizedBox(height: 24),
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      child: ListView(
+        key: _refreshKey,
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Active Discussions Section
+          const SectionHeader(
+            icon: Icons.forum,
+            title: 'Aktif Tartışmalar',
+            subtitle: 'Şu anda tartışılan makaleler',
+          ),
+          const SizedBox(height: 12),
+          _ActiveDiscussionsSection(),
+          const SizedBox(height: 24),
 
-        // Voting This Week Section
-        const SectionHeader(
-          icon: Icons.how_to_vote,
-          title: 'Bu Hafta Oylama',
-          subtitle: 'Oyunu kullan, kazananı belirle',
-        ),
-        const SizedBox(height: 12),
-        _VotingWeeksSection(),
-      ],
+          // Voting This Week Section
+          const SectionHeader(
+            icon: Icons.how_to_vote,
+            title: 'Bu Hafta Oylama',
+            subtitle: 'Oyunu kullan, kazananı belirle',
+          ),
+          const SizedBox(height: 12),
+          _VotingWeeksSection(),
+        ],
+      ),
     );
   }
 }
 
 // ==================== FOLLOWING TAB ====================
 
-class _FollowingTab extends StatelessWidget {
+class _FollowingTab extends StatefulWidget {
+  @override
+  State<_FollowingTab> createState() => _FollowingTabState();
+}
+
+class _FollowingTabState extends State<_FollowingTab> {
+  Key _refreshKey = UniqueKey();
+
+  Future<void> _onRefresh() async {
+    setState(() {
+      _refreshKey = UniqueKey();
+    });
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
+
   @override
   Widget build(BuildContext context) {
     final authService = AuthService();
@@ -111,28 +147,32 @@ class _FollowingTab extends StatelessWidget {
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Following Activity
-        const SectionHeader(
-          icon: Icons.people,
-          title: 'Takip Edilenler',
-          subtitle: 'Takip ettiğiniz kişiler',
-        ),
-        const SizedBox(height: 12),
-        _FollowingListSection(currentUid: currentUid),
-        const SizedBox(height: 24),
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      child: ListView(
+        key: _refreshKey,
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Following Activity
+          const SectionHeader(
+            icon: Icons.people,
+            title: 'Takip Edilenler',
+            subtitle: 'Takip ettiğiniz kişiler',
+          ),
+          const SizedBox(height: 12),
+          _FollowingListSection(currentUid: currentUid),
+          const SizedBox(height: 24),
 
-        // Suggested Users
-        const SectionHeader(
-          icon: Icons.person_add,
-          title: 'Önerilen Kullanıcılar',
-          subtitle: 'Yeni kişiler keşfet',
-        ),
-        const SizedBox(height: 12),
-        _SuggestedUsersSection(currentUid: currentUid),
-      ],
+          // Suggested Users
+          const SectionHeader(
+            icon: Icons.person_add,
+            title: 'Önerilen Kullanıcılar',
+            subtitle: 'Yeni kişiler keşfet',
+          ),
+          const SizedBox(height: 12),
+          _SuggestedUsersSection(currentUid: currentUid),
+        ],
+      ),
     );
   }
 }
@@ -150,10 +190,10 @@ class _FollowingListSection extends StatelessWidget {
       stream: followService.getFollowing(currentUid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: CircularProgressIndicator(),
+          return Column(
+            children: List.generate(
+              3,
+              (index) => const UserCardSkeleton(),
             ),
           );
         }
@@ -238,10 +278,10 @@ class _SuggestedUsersSection extends StatelessWidget {
       stream: followService.getSuggestedUsers(currentUid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: CircularProgressIndicator(),
+          return Column(
+            children: List.generate(
+              3,
+              (index) => const UserCardSkeleton(),
             ),
           );
         }
@@ -350,10 +390,10 @@ class _ActiveDiscussionsSection extends StatelessWidget {
       stream: weekService.getActiveDiscussions(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: CircularProgressIndicator(),
+          return Column(
+            children: List.generate(
+              2,
+              (index) => const ArticleCardSkeleton(),
             ),
           );
         }
@@ -398,10 +438,10 @@ class _VotingWeeksSection extends StatelessWidget {
       stream: weekService.getVotingWeeks(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: CircularProgressIndicator(),
+          return Column(
+            children: List.generate(
+              2,
+              (index) => const UserCardSkeleton(),
             ),
           );
         }
@@ -440,6 +480,11 @@ class _DiscussionCard extends StatelessWidget {
     required this.article,
     required this.community,
   });
+
+  void _shareArticle() {
+    final text = '${article.title}\n\n${article.summary}\n\nMakaleyi oku: ${article.link}\n\n#Bilimagi ile paylaşıldı';
+    Share.share(text, subject: article.title);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -485,6 +530,20 @@ class _DiscussionCard extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
+                  // Share button
+                  InkWell(
+                    onTap: _shareArticle,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.share,
+                        size: 18,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Icon(
                     Icons.chat_bubble,
                     size: 16,
@@ -518,18 +577,54 @@ class _DiscussionCard extends StatelessWidget {
               // Stats
               Row(
                 children: [
-                  Icon(
-                    Icons.emoji_events,
-                    size: 16,
-                    color: AppTheme.accentColor,
+                  // Vote count (stream)
+                  StreamBuilder<int>(
+                    stream: WeekService().getArticleVoteCount(week.id, article.id),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? article.voteCount;
+                      return Row(
+                        children: [
+                          Icon(
+                            Icons.emoji_events,
+                            size: 16,
+                            color: AppTheme.accentColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$count oy',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${article.voteCount} oy',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                    ),
+                  const SizedBox(width: 16),
+                  // Comment count (stream)
+                  StreamBuilder<int>(
+                    stream: CommentService().getCommentCount(week.id, article.id),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      return Row(
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 16,
+                            color: AppTheme.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$count yorum',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),

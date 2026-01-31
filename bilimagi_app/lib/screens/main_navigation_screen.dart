@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../services/notification_service.dart';
+import '../widgets/connectivity_indicator.dart';
 import 'home_feed_screen.dart';
 import 'community_select_screen.dart';
 import 'activity_screen.dart';
@@ -27,9 +28,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+      body: ConnectivityIndicator(
+        child: IndexedStack(
+          index: _currentIndex,
+          children: _screens,
+        ),
       ),
       bottomNavigationBar: StreamBuilder<int>(
         stream: _notificationService.getUnreadCount(),
