@@ -26,10 +26,6 @@ class CommunitySelectScreen extends StatelessWidget {
               );
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => FirebaseAuth.instance.signOut(),
-          ),
         ],
       ),
       body: StreamBuilder<List<Community>>(

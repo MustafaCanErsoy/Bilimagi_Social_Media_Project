@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/week.dart';
 import '../models/article.dart';
+import '../models/community.dart';
 import 'profile_service.dart';
 
 class Comment {
@@ -308,5 +309,70 @@ class WeekService {
 
     // Increment user comment stats
     await _profileService.incrementStats(comments: 1);
+  }
+
+  // v2.0: Get active discussions (for home feed)
+  Stream<List<Map<String, dynamic>>> getActiveDiscussions() {
+    return _db
+        .collection('weeks')
+        .where('phase', isEqualTo: 'discussion')
+        .orderBy('createdAt', descending: true)
+        .limit(10)
+        .snapshots()
+        .asyncMap((weeksSnapshot) async {
+      final List<Map<String, dynamic>> results = [];
+
+      for (final weekDoc in weeksSnapshot.docs) {
+        final week = Week.fromFirestore(weekDoc);
+
+        // Get community
+        final communityDoc =
+            await _db.collection('communities').doc(week.communityId).get();
+        if (!communityDoc.exists) continue;
+        final community = Community.fromFirestore(communityDoc);
+
+        // Get winning article
+        final article = await getWinningArticle(week.id);
+        if (article == null) continue;
+
+        results.add({
+          'week': week,
+          'community': community,
+          'article': article,
+        });
+      }
+
+      return results;
+    });
+  }
+
+  // v2.0: Get voting weeks (for home feed)
+  Stream<List<Map<String, dynamic>>> getVotingWeeks() {
+    return _db
+        .collection('weeks')
+        .where('phase', isEqualTo: 'voting')
+        .orderBy('createdAt', descending: true)
+        .limit(10)
+        .snapshots()
+        .asyncMap((weeksSnapshot) async {
+      final List<Map<String, dynamic>> results = [];
+
+      for (final weekDoc in weeksSnapshot.docs) {
+        final week = Week.fromFirestore(weekDoc);
+
+        // Get community
+        final communityDoc =
+            await _db.collection('communities').doc(week.communityId).get();
+        if (!communityDoc.exists) continue;
+        final community = Community.fromFirestore(communityDoc);
+
+        results.add({
+          'week': week,
+          'community': community,
+        });
+      }
+
+      return results;
+    });
   }
 }

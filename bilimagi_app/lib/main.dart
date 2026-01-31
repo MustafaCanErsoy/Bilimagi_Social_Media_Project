@@ -3,7 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
-import 'screens/community_select_screen.dart';
+import 'screens/main_navigation_screen.dart';
 import 'core/theme.dart';
 
 void main() async {
@@ -42,7 +42,7 @@ class AuthWrapper extends StatelessWidget {
         }
 
         if (snapshot.hasData) {
-          return CommunitySelectScreen();
+          return const MainNavigationScreen();
         }
 
         return const LoginScreen();
