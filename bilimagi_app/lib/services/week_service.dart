@@ -1,0 +1,236 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../models/week.dart';
+import '../models/article.dart';
+
+class Comment {
+  final String id;
+  final String uid;
+  final String displayName;
+  final String text;
+  final DateTime createdAt;
+
+  Comment({
+    required this.id,
+    required this.uid,
+    required this.displayName,
+    required this.text,
+    required this.createdAt,
+  });
+
+  factory Comment.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Comment(
+      id: doc.id,
+      uid: data['uid'] ?? '',
+      displayName: data['displayName'] ?? 'Anonim',
+      text: data['text'] ?? '',
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+}
+
+class WeekService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // Get week by ID (stream for realtime phase updates)
+  Stream<Week?> getWeek(String weekId) {
+    return _db.collection('weeks').doc(weekId).snapshots().map((doc) {
+      if (doc.exists) {
+        return Week.fromFirestore(doc);
+      }
+      return null;
+    });
+  }
+
+  // Get articles for a week (stream)
+  Stream<List<Article>> getArticles(String weekId) {
+    return _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => Article.fromFirestore(doc)).toList();
+    });
+  }
+
+  // Get vote counts for all articles in a week (stream)
+  Stream<Map<String, int>> getVoteCounts(String weekId) {
+    // Listen to week document changes (triggered by lastVoteAt updates)
+    return _db.collection('weeks').doc(weekId).snapshots().asyncMap((_) async {
+      // Get all articles in this week
+      final articlesSnapshot = await _db
+          .collection('weeks')
+          .doc(weekId)
+          .collection('articles')
+          .get();
+
+      final Map<String, int> voteCounts = {};
+
+      // Count votes for each article
+      for (final articleDoc in articlesSnapshot.docs) {
+        final votesSnapshot = await _db
+            .collection('weeks')
+            .doc(weekId)
+            .collection('articles')
+            .doc(articleDoc.id)
+            .collection('votes')
+            .get();
+        voteCounts[articleDoc.id] = votesSnapshot.docs.length;
+      }
+
+      return voteCounts;
+    });
+  }
+
+  // Get user's current vote in a week
+  Future<String?> getUserVote(String weekId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return null;
+
+    final articlesSnapshot = await _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .get();
+
+    for (final articleDoc in articlesSnapshot.docs) {
+      final voteDoc = await _db
+          .collection('weeks')
+          .doc(weekId)
+          .collection('articles')
+          .doc(articleDoc.id)
+          .collection('votes')
+          .doc(uid)
+          .get();
+
+      if (voteDoc.exists) {
+        return articleDoc.id;
+      }
+    }
+    return null;
+  }
+
+  // Cast a vote (removes previous vote if exists)
+  Future<void> castVote(String weekId, String articleId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw Exception('User not logged in');
+
+    // First, remove any existing votes by this user in this week
+    final articlesSnapshot = await _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .get();
+
+    final batch = _db.batch();
+
+    for (final articleDoc in articlesSnapshot.docs) {
+      final voteRef = _db
+          .collection('weeks')
+          .doc(weekId)
+          .collection('articles')
+          .doc(articleDoc.id)
+          .collection('votes')
+          .doc(uid);
+      batch.delete(voteRef);
+    }
+
+    // Add new vote
+    final newVoteRef = _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('votes')
+        .doc(uid);
+
+    batch.set(newVoteRef, {
+      'choice': articleId,
+      'weekId': weekId,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    // Update week document to trigger vote count stream
+    final weekRef = _db.collection('weeks').doc(weekId);
+    batch.update(weekRef, {
+      'lastVoteAt': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+  }
+
+  // Change week phase (admin only)
+  Future<void> changePhase(String weekId, WeekPhase newPhase) async {
+    await _db.collection('weeks').doc(weekId).update({
+      'phase': Week.phaseToString(newPhase),
+    });
+  }
+
+  // Get winning article (most votes)
+  Future<Article?> getWinningArticle(String weekId) async {
+    final articlesSnapshot = await _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .get();
+
+    Article? winner;
+    int maxVotes = -1;
+
+    for (final articleDoc in articlesSnapshot.docs) {
+      final votesSnapshot = await _db
+          .collection('weeks')
+          .doc(weekId)
+          .collection('articles')
+          .doc(articleDoc.id)
+          .collection('votes')
+          .get();
+
+      final voteCount = votesSnapshot.docs.length;
+      if (voteCount > maxVotes) {
+        maxVotes = voteCount;
+        winner = Article.fromFirestore(articleDoc);
+        winner.voteCount = voteCount;
+      }
+    }
+
+    return winner;
+  }
+
+  // Get comments for an article (stream)
+  Stream<List<Comment>> getComments(String weekId, String articleId) {
+    return _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments')
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => Comment.fromFirestore(doc)).toList();
+    });
+  }
+
+  // Add a comment
+  Future<void> addComment(String weekId, String articleId, String text) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
+    await _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments')
+        .add({
+      'uid': user.uid,
+      'displayName': user.displayName ?? user.email ?? 'Anonim',
+      'text': text,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+}

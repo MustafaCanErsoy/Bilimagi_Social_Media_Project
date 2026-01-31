@@ -16,6 +16,7 @@
     auth_service.dart
     firestore_service.dart
     week_service.dart
+    seed_service.dart
   /screens
     login_screen.dart
     community_select_screen.dart

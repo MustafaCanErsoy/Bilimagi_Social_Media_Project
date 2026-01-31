@@ -9,9 +9,15 @@ For demos, **do not change device time**. Use an **admin phase switch**:
 `voting -> discussion -> closed`.
 
 ## Definition of Done
-- Two different users can log in and vote in the same community.
-- Vote results update **live** on another client (e.g., second emulator).
-- Admin switches to `discussion` and the UI transitions correctly.
-- Comments can be posted and appear **live** on another client.
-- Data remains after app restart.
-- Android live demo + iOS run/build proof from the same codebase.
+- [x] Two different users can log in and vote in the same community.
+- [x] Vote results update **live** on another client (verified: Chrome + Incognito).
+- [ ] Admin switches to `discussion` and the UI transitions correctly.
+- [ ] Comments can be posted and appear **live** on another client.
+- [ ] Data remains after app restart.
+- [ ] Android live demo + iOS run/build proof from the same codebase.
+
+## Current Progress
+- ✅ Demo data seeding (2 communities, 9 articles, 3 users)
+- ✅ Multi-user voting with realtime updates
+- ⏳ Multi-user discussion testing (next step)
+- ⏳ Android/iOS demo preparation
