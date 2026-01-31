@@ -8,6 +8,7 @@ import 'profile_edit_screen.dart';
 import 'saved_articles_screen.dart';
 import 'followers_screen.dart';
 import 'following_screen.dart';
+import 'settings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final String? userId; // null = current user, string = other user
@@ -32,30 +33,15 @@ class ProfileScreen extends StatelessWidget {
         actions: [
           if (isCurrentUser && userId == null)
             IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Çıkış Yap',
-              onPressed: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Çıkış Yap'),
-                    content: const Text('Çıkış yapmak istediğinize emin misiniz?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('İptal'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Çıkış Yap'),
-                      ),
-                    ],
+              icon: const Icon(Icons.settings),
+              tooltip: 'Ayarlar',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SettingsScreen(),
                   ),
                 );
-
-                if (confirmed == true && context.mounted) {
-                  await AuthService().signOut();
-                }
               },
             ),
         ],

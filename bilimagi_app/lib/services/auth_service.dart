@@ -23,6 +23,25 @@ class AuthService {
     return credential;
   }
 
+  // v4.0: Sign up new user
+  Future<UserCredential> signUp(String email, String password, String displayName) async {
+    final credential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+
+    // Create user profile
+    if (credential.user != null) {
+      await _profileService.createUserProfile(
+        uid: credential.user!.uid,
+        email: email,
+        displayName: displayName,
+      );
+    }
+
+    return credential;
+  }
+
   Future<void> signOut() async {
     await _auth.signOut();
   }

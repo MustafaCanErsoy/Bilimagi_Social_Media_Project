@@ -74,4 +74,28 @@ class ProfileService {
       });
     }
   }
+
+  /// v4.0: Create new user profile
+  Future<void> createUserProfile({
+    required String uid,
+    required String email,
+    required String displayName,
+  }) async {
+    await _firestore.collection('users').doc(uid).set({
+      'uid': uid,
+      'email': email,
+      'displayName': displayName,
+      'role': 'member',
+      'bio': null,
+      'photoURL': null,
+      'avatarColorIndex': uid.hashCode.abs() % 8,
+      'stats': {
+        'totalVotes': 0,
+        'totalComments': 0,
+        'followersCount': 0,
+        'followingCount': 0,
+        'joinedAt': FieldValue.serverTimestamp(),
+      },
+    });
+  }
 }

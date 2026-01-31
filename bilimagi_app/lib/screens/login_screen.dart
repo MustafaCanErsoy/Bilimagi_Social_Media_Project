@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../core/theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -39,6 +40,114 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
+  }
+
+  void _showSignUpDialog() {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    bool isLoading = false;
+    String? error;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Kayit Ol'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Isim',
+                    hintText: 'Mustafa',
+                  ),
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    hintText: 'm@bilimagi.com',
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: passwordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Sifre',
+                    hintText: 'En az 6 karakter',
+                  ),
+                  obscureText: true,
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    error!,
+                    style: TextStyle(color: AppTheme.errorColor, fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Iptal'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      final name = nameController.text.trim();
+                      final email = emailController.text.trim();
+                      final password = passwordController.text;
+
+                      if (name.isEmpty || email.isEmpty || password.isEmpty) {
+                        setState(() => error = 'Tum alanlari doldurun');
+                        return;
+                      }
+                      if (password.length < 6) {
+                        setState(() => error = 'Sifre en az 6 karakter olmali');
+                        return;
+                      }
+
+                      setState(() {
+                        isLoading = true;
+                        error = null;
+                      });
+
+                      try {
+                        await _authService.signUp(email, password, name);
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Hosgeldin, $name!')),
+                          );
+                        }
+                      } catch (e) {
+                        setState(() {
+                          error = 'Kayit basarisiz: ${e.toString()}';
+                          isLoading = false;
+                        });
+                      }
+                    },
+              child: isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Kayit Ol'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -91,8 +200,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: _isLoading ? null : _login,
                 child: _isLoading
                     ? const CircularProgressIndicator()
-                    : const Text('Login'),
+                    : const Text('Giris Yap'),
               ),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: _showSignUpDialog,
+              child: const Text('Hesabin yok mu? Kayit Ol'),
             ),
           ],
         ),

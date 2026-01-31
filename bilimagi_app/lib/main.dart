@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'core/theme.dart';
+import 'core/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,10 +21,19 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Bilimagi',
-      theme: AppTheme.lightTheme,
-      home: const AuthWrapper(),
+    return ChangeNotifierProvider(
+      create: (_) => ThemeProvider()..initialize(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'Bilimagi',
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeProvider.themeMode,
+            home: const AuthWrapper(),
+          );
+        },
+      ),
     );
   }
 }
@@ -50,4 +61,3 @@ class AuthWrapper extends StatelessWidget {
     );
   }
 }
-

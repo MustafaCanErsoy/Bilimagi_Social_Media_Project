@@ -24,6 +24,13 @@ class Comment {
   final int downvoteCount;
   final int score; // upvoteCount - downvoteCount
 
+  // v4.0: Edit fields
+  final bool isEdited;
+  final DateTime? editedAt;
+
+  // v4.0: Delete field (soft delete)
+  final bool isDeleted;
+
   Comment({
     required this.id,
     required this.uid,
@@ -36,6 +43,9 @@ class Comment {
     this.upvoteCount = 0,
     this.downvoteCount = 0,
     this.score = 0,
+    this.isEdited = false,
+    this.editedAt,
+    this.isDeleted = false,
   });
 
   factory Comment.fromFirestore(DocumentSnapshot doc) {
@@ -52,6 +62,9 @@ class Comment {
       upvoteCount: data['upvoteCount'] ?? 0,
       downvoteCount: data['downvoteCount'] ?? 0,
       score: data['score'] ?? 0,
+      isEdited: data['isEdited'] ?? false,
+      editedAt: (data['editedAt'] as Timestamp?)?.toDate(),
+      isDeleted: data['isDeleted'] ?? false,
     );
   }
 }
@@ -458,6 +471,69 @@ class WeekService {
 
       // Return top 10
       return results.take(10).toList();
+    });
+  }
+
+  // v4.0: Edit a comment
+  Future<void> editComment(
+    String weekId,
+    String articleId,
+    String commentId,
+    String newText,
+  ) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
+    final commentRef = _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments')
+        .doc(commentId);
+
+    // Verify ownership
+    final commentDoc = await commentRef.get();
+    if (!commentDoc.exists) throw Exception('Comment not found');
+
+    final commentUid = commentDoc.data()?['uid'] as String?;
+    if (commentUid != user.uid) throw Exception('Not authorized to edit this comment');
+
+    // Update the comment
+    await commentRef.update({
+      'text': newText,
+      'isEdited': true,
+      'editedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // v4.0: Delete a comment (soft delete)
+  Future<void> deleteComment(
+    String weekId,
+    String articleId,
+    String commentId,
+  ) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
+    final commentRef = _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments')
+        .doc(commentId);
+
+    // Verify ownership
+    final commentDoc = await commentRef.get();
+    if (!commentDoc.exists) throw Exception('Comment not found');
+
+    final commentUid = commentDoc.data()?['uid'] as String?;
+    if (commentUid != user.uid) throw Exception('Not authorized to delete this comment');
+
+    // Soft delete - mark as deleted
+    await commentRef.update({
+      'isDeleted': true,
     });
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/week.dart';
 import '../models/article.dart';
@@ -225,7 +226,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppTheme.textTertiary.withOpacity(0.1),
+                  color: AppTheme.getTextTertiary(context).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                   border: Border(
                     left: BorderSide(
@@ -238,7 +239,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
                   parentComment.text,
                   style: TextStyle(
                     fontSize: 13,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.getTextSecondary(context),
                   ),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
@@ -313,6 +314,166 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // v4.0: Show edit dialog
+  void _showEditDialog(Comment comment) {
+    final editController = TextEditingController(text: comment.text);
+    bool saving = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 16,
+            right: 16,
+            top: 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.edit, size: 20),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Yorumu Düzenle',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Edit input
+              TextField(
+                controller: editController,
+                decoration: const InputDecoration(
+                  hintText: 'Yorumunuzu düzenleyin...',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 5,
+                autofocus: true,
+              ),
+              const SizedBox(height: 12),
+              // Save button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final newText = editController.text.trim();
+                          if (newText.isEmpty) return;
+                          if (newText == comment.text) {
+                            Navigator.pop(context);
+                            return;
+                          }
+
+                          setState(() => saving = true);
+
+                          try {
+                            await _weekService.editComment(
+                              widget.week.id,
+                              widget.article.id,
+                              comment.id,
+                              newText,
+                            );
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Yorum düzenlendi!'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Hata: $e')),
+                              );
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => saving = false);
+                            }
+                          }
+                        },
+                  icon: saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.save),
+                  label: const Text('Kaydet'),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // v4.0: Show delete confirmation dialog
+  void _showDeleteDialog(Comment comment) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yorumu Sil'),
+        content: const Text(
+          'Bu yorumu silmek istediginize emin misiniz?\n\nYanitlar korunacak ancak yorumunuz "[Bu yorum silindi]" olarak gosterilecek.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Iptal'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _weekService.deleteComment(
+                  widget.week.id,
+                  widget.article.id,
+                  comment.id,
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Yorum silindi')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Hata: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text(
+              'Sil',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -573,11 +734,20 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final commentNode = flattenedComments[index];
+                      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+                      final isOwnComment = commentNode.comment.uid == currentUid;
                       return _CommentCard(
                         commentNode: commentNode,
                         week: widget.week,
                         articleId: widget.article.id,
                         onReply: () => _showReplyDialog(commentNode.comment),
+                        isOwnComment: isOwnComment,
+                        onEdit: isOwnComment
+                            ? () => _showEditDialog(commentNode.comment)
+                            : null,
+                        onDelete: isOwnComment
+                            ? () => _showDeleteDialog(commentNode.comment)
+                            : null,
                       );
                     },
                     childCount: flattenedComments.length,
@@ -601,7 +771,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
         children: [
           Icon(
             Icons.comment,
-            color: AppTheme.textSecondary,
+            color: AppTheme.getTextSecondary(context),
             size: 20,
           ),
           const SizedBox(width: 8),
@@ -610,14 +780,14 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: AppTheme.textSecondary,
+              color: AppTheme.getTextSecondary(context),
             ),
           ),
           Expanded(
             child: Container(
               margin: const EdgeInsets.only(left: 12),
               height: 1,
-              color: AppTheme.textTertiary.withOpacity(0.3),
+              color: AppTheme.getTextTertiary(context).withOpacity(0.3),
             ),
           ),
         ],
@@ -661,7 +831,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
         decoration: BoxDecoration(
           color: isSelected
               ? AppTheme.primaryColor
-              : AppTheme.textTertiary.withOpacity(0.1),
+              : AppTheme.getTextTertiary(context).withOpacity(0.1),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -670,7 +840,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
             Icon(
               icon,
               size: 16,
-              color: isSelected ? Colors.white : AppTheme.textSecondary,
+              color: isSelected ? Colors.white : AppTheme.getTextSecondary(context),
             ),
             const SizedBox(width: 6),
             Text(
@@ -678,7 +848,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.white : AppTheme.textSecondary,
+                color: isSelected ? Colors.white : AppTheme.getTextSecondary(context),
               ),
             ),
           ],
@@ -695,7 +865,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
           Icon(
             Icons.chat_bubble_outline,
             size: 64,
-            color: AppTheme.textTertiary,
+            color: AppTheme.getTextTertiary(context),
           ),
           const SizedBox(height: 16),
           Text(
@@ -703,7 +873,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: AppTheme.textSecondary,
+              color: AppTheme.getTextSecondary(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -711,7 +881,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
             'İlk yorumu sen yap!',
             style: TextStyle(
               fontSize: 14,
-              color: AppTheme.textTertiary,
+              color: AppTheme.getTextTertiary(context),
             ),
           ),
         ],
@@ -729,7 +899,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppTheme.getSurfaceColor(context),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.05),
@@ -746,7 +916,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
                     controller: _commentController,
                     decoration: InputDecoration(
                       hintText: 'Yorumunuzu yazın... (@ile etiketle)',
-                      hintStyle: TextStyle(color: AppTheme.textTertiary),
+                      hintStyle: TextStyle(color: AppTheme.getTextTertiary(context)),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 12,
@@ -789,15 +959,15 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTheme.getSurfaceColor(context),
           border: Border(
-            top: BorderSide(color: AppTheme.textTertiary.withValues(alpha: 0.2)),
+            top: BorderSide(color: AppTheme.getTextTertiary(context).withValues(alpha: 0.2)),
           ),
         ),
         child: Text(
           'Kullanıcı bulunamadı',
           style: TextStyle(
-            color: AppTheme.textSecondary,
+            color: AppTheme.getTextSecondary(context),
             fontSize: 14,
           ),
         ),
@@ -809,15 +979,15 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTheme.getSurfaceColor(context),
           border: Border(
-            top: BorderSide(color: AppTheme.textTertiary.withValues(alpha: 0.2)),
+            top: BorderSide(color: AppTheme.getTextTertiary(context).withValues(alpha: 0.2)),
           ),
         ),
         child: Text(
           'Etiketlemek için yazmaya başlayın...',
           style: TextStyle(
-            color: AppTheme.textSecondary,
+            color: AppTheme.getTextSecondary(context),
             fontSize: 14,
           ),
         ),
@@ -827,9 +997,9 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
     return Container(
       constraints: const BoxConstraints(maxHeight: 200),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.getSurfaceColor(context),
         border: Border(
-          top: BorderSide(color: AppTheme.textTertiary.withValues(alpha: 0.2)),
+          top: BorderSide(color: AppTheme.getTextTertiary(context).withValues(alpha: 0.2)),
         ),
       ),
       child: ListView.builder(
@@ -859,7 +1029,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
               user.email,
               style: TextStyle(
                 fontSize: 12,
-                color: AppTheme.textSecondary,
+                color: AppTheme.getTextSecondary(context),
               ),
             ),
             dense: true,
@@ -890,12 +1060,18 @@ class _CommentCard extends StatelessWidget {
   final Week week;
   final String articleId;
   final VoidCallback onReply;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final bool isOwnComment;
 
   const _CommentCard({
     required this.commentNode,
     required this.week,
     required this.articleId,
     required this.onReply,
+    this.onEdit,
+    this.onDelete,
+    this.isOwnComment = false,
   });
 
   @override
@@ -904,6 +1080,44 @@ class _CommentCard extends StatelessWidget {
     final depth = comment.depth;
     final leftPadding = depth * 20.0; // 20px per level
     final maxDepth = 5; // Limit indentation
+
+    // v4.0: Show deleted comment placeholder
+    if (comment.isDeleted) {
+      return Padding(
+        padding: EdgeInsets.only(
+          bottom: 16,
+          left: depth > maxDepth ? maxDepth * 20.0 : leftPadding,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: AppTheme.getTextTertiary(context),
+              child: const Icon(Icons.person_off, color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.getTextTertiary(context).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '[Bu yorum silindi]',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                    color: AppTheme.getTextTertiary(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: EdgeInsets.only(
@@ -934,7 +1148,7 @@ class _CommentCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Name and time in one line
+                // Name, time, and edit indicator
                 Row(
                   children: [
                     Flexible(
@@ -963,9 +1177,44 @@ class _CommentCard extends StatelessWidget {
                       _formatTime(comment.createdAt),
                       style: TextStyle(
                         fontSize: 12,
-                        color: AppTheme.textTertiary,
+                        color: AppTheme.getTextTertiary(context),
                       ),
                     ),
+                    // v4.0: Edited indicator
+                    if (comment.isEdited) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '(düzenlendi)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                          color: AppTheme.getTextTertiary(context),
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    // v4.0: Edit button for own comments
+                    if (isOwnComment && week.phase == WeekPhase.discussion && onEdit != null)
+                      GestureDetector(
+                        onTap: onEdit,
+                        child: Icon(
+                          Icons.edit_outlined,
+                          size: 16,
+                          color: AppTheme.getTextTertiary(context),
+                        ),
+                      ),
+                    // v4.0: Delete button for own comments
+                    if (isOwnComment && week.phase == WeekPhase.discussion && onDelete != null) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: onDelete,
+                        child: Icon(
+                          Icons.delete_outline,
+                          size: 16,
+                          color: AppTheme.getTextTertiary(context),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -1010,7 +1259,7 @@ class _CommentCard extends StatelessWidget {
                         '${comment.replyCount} yanıt',
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.textTertiary,
+                          color: AppTheme.getTextTertiary(context),
                         ),
                       ),
                     ],
@@ -1033,7 +1282,7 @@ class _CommentCard extends StatelessWidget {
         MentionService.getDisplayText(text),
         style: TextStyle(
           fontSize: 15,
-          color: AppTheme.textPrimary,
+          color: AppTheme.getTextPrimary(context),
           height: 1.4,
         ),
       );
@@ -1043,7 +1292,7 @@ class _CommentCard extends StatelessWidget {
       text: TextSpan(
         style: TextStyle(
           fontSize: 15,
-          color: AppTheme.textPrimary,
+          color: AppTheme.getTextPrimary(context),
           height: 1.4,
         ),
         children: segments.map((segment) {
@@ -1160,7 +1409,7 @@ class _VoteButtons extends StatelessWidget {
                 size: 20,
                 color: hasUpvoted
                     ? AppTheme.primaryColor
-                    : AppTheme.textSecondary,
+                    : AppTheme.getTextSecondary(context),
               ),
             ),
             const SizedBox(width: 6),
@@ -1174,7 +1423,7 @@ class _VoteButtons extends StatelessWidget {
                     ? AppTheme.primaryColor
                     : hasDownvoted
                         ? AppTheme.errorColor
-                        : AppTheme.textPrimary,
+                        : AppTheme.getTextPrimary(context),
               ),
             ),
             const SizedBox(width: 6),
@@ -1195,7 +1444,7 @@ class _VoteButtons extends StatelessWidget {
                 size: 20,
                 color: hasDownvoted
                     ? AppTheme.errorColor
-                    : AppTheme.textSecondary,
+                    : AppTheme.getTextSecondary(context),
               ),
             ),
           ],
