@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/week.dart';
 import '../models/article.dart';
+import '../models/comment_tree.dart';
 import '../services/week_service.dart';
 import '../core/theme.dart';
 import 'profile_screen.dart';
@@ -55,6 +56,141 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
         setState(() => _sending = false);
       }
     }
+  }
+
+  // Show reply dialog
+  void _showReplyDialog(Comment parentComment) {
+    final replyController = TextEditingController();
+    bool sending = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 16,
+            right: 16,
+            top: 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.reply, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${parentComment.displayName} kullanıcısına yanıt',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Original comment (quoted)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.textTertiary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border(
+                    left: BorderSide(
+                      color: AppTheme.primaryColor,
+                      width: 3,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  parentComment.text,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Reply input
+              TextField(
+                controller: replyController,
+                decoration: const InputDecoration(
+                  hintText: 'Yanıtınızı yazın...',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+                autofocus: true,
+              ),
+              const SizedBox(height: 12),
+              // Send button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          final text = replyController.text.trim();
+                          if (text.isEmpty) return;
+
+                          setState(() => sending = true);
+
+                          try {
+                            await _weekService.addReply(
+                              widget.week.id,
+                              widget.article.id,
+                              parentComment.id,
+                              parentComment.depth,
+                              text,
+                            );
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Yanıt gönderildi!'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Hata: $e')),
+                              );
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => sending = false);
+                            }
+                          }
+                        },
+                  icon: sending
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.send),
+                  label: const Text('Gönder'),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openArticleLink() async {
@@ -238,6 +374,10 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
 
         final comments = snapshot.data ?? [];
 
+        // Build comment tree
+        final commentTree = CommentTree.buildTree(comments);
+        final flattenedComments = CommentTree.flatten(commentTree);
+
         return CustomScrollView(
           slivers: [
             // Comments header
@@ -245,7 +385,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
               child: _buildCommentsHeader(comments.length),
             ),
             // Comments list
-            if (comments.isEmpty)
+            if (flattenedComments.isEmpty)
               SliverFillRemaining(
                 child: _buildEmptyState(),
               )
@@ -255,10 +395,15 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
-                      final comment = comments[index];
-                      return _CommentCard(comment: comment);
+                      final commentNode = flattenedComments[index];
+                      return _CommentCard(
+                        commentNode: commentNode,
+                        week: widget.week,
+                        articleId: widget.article.id,
+                        onReply: () => _showReplyDialog(commentNode.comment),
+                      );
                     },
-                    childCount: comments.length,
+                    childCount: flattenedComments.length,
                   ),
                 ),
               ),
@@ -393,14 +538,30 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
 }
 
 class _CommentCard extends StatelessWidget {
-  final Comment comment;
+  final CommentTree commentNode;
+  final Week week;
+  final String articleId;
+  final VoidCallback onReply;
 
-  const _CommentCard({required this.comment});
+  const _CommentCard({
+    required this.commentNode,
+    required this.week,
+    required this.articleId,
+    required this.onReply,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final comment = commentNode.comment;
+    final depth = comment.depth;
+    final leftPadding = depth * 20.0; // 20px per level
+    final maxDepth = 5; // Limit indentation
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.only(
+        bottom: 16,
+        left: depth > maxDepth ? maxDepth * 20.0 : leftPadding,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -469,6 +630,44 @@ class _CommentCard extends StatelessWidget {
                     height: 1.4,
                   ),
                 ),
+                // Reply button (only in discussion phase)
+                if (week.phase == WeekPhase.discussion) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: onReply,
+                        icon: Icon(
+                          Icons.reply,
+                          size: 16,
+                          color: AppTheme.primaryColor,
+                        ),
+                        label: Text(
+                          'Yanıtla',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(0, 0),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      if (comment.replyCount > 0) ...[
+                        const SizedBox(width: 12),
+                        Text(
+                          '${comment.replyCount} yanıt',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

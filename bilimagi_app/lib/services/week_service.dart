@@ -11,12 +11,20 @@ class Comment {
   final String text;
   final DateTime createdAt;
 
+  // v2.0: Nested comments fields
+  final String? parentId; // null = top-level comment
+  final int depth; // 0 = top-level, 1+ = nested
+  final int replyCount; // number of direct replies
+
   Comment({
     required this.id,
     required this.uid,
     required this.displayName,
     required this.text,
     required this.createdAt,
+    this.parentId,
+    this.depth = 0,
+    this.replyCount = 0,
   });
 
   factory Comment.fromFirestore(DocumentSnapshot doc) {
@@ -27,6 +35,9 @@ class Comment {
       displayName: data['displayName'] ?? 'Anonim',
       text: data['text'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      parentId: data['parentId'],
+      depth: data['depth'] ?? 0,
+      replyCount: data['replyCount'] ?? 0,
     );
   }
 }
@@ -236,6 +247,46 @@ class WeekService {
       'displayName': user.displayName ?? user.email ?? 'Anonim',
       'text': text,
       'createdAt': FieldValue.serverTimestamp(),
+      'depth': 0, // Top-level comment
+      'replyCount': 0,
+    });
+
+    // Increment user comment stats
+    await _profileService.incrementStats(comments: 1);
+  }
+
+  // v2.0: Add reply to a comment
+  Future<void> addReply(
+    String weekId,
+    String articleId,
+    String parentCommentId,
+    int parentDepth,
+    String text,
+  ) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
+    final commentsRef = _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments');
+
+    // Add the reply
+    await commentsRef.add({
+      'uid': user.uid,
+      'displayName': user.displayName ?? user.email ?? 'Anonim',
+      'text': text,
+      'createdAt': FieldValue.serverTimestamp(),
+      'parentId': parentCommentId,
+      'depth': parentDepth + 1, // One level deeper than parent
+      'replyCount': 0,
+    });
+
+    // Increment parent's reply count
+    await commentsRef.doc(parentCommentId).update({
+      'replyCount': FieldValue.increment(1),
     });
 
     // Increment user comment stats
