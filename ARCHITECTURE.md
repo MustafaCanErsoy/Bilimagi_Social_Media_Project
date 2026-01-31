@@ -23,6 +23,9 @@
     discussion_screen.dart
     admin_screen.dart
   /widgets
+    app_scaffold.dart
+    primary_button.dart
+    community_card.dart
     article_card.dart
     result_bar.dart
 
