@@ -80,11 +80,16 @@ class UserStats {
   final int totalVotes;
   final int totalComments;
   final DateTime joinedAt;
+  // v3.0 fields
+  final int followersCount;
+  final int followingCount;
 
   UserStats({
     this.totalVotes = 0,
     this.totalComments = 0,
     DateTime? joinedAt,
+    this.followersCount = 0,
+    this.followingCount = 0,
   }) : joinedAt = joinedAt ?? DateTime.now();
 
   factory UserStats.fromMap(Map<String, dynamic> map) {
@@ -92,6 +97,8 @@ class UserStats {
       totalVotes: map['totalVotes'] ?? 0,
       totalComments: map['totalComments'] ?? 0,
       joinedAt: (map['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      followersCount: map['followersCount'] ?? 0,
+      followingCount: map['followingCount'] ?? 0,
     );
   }
 
@@ -100,17 +107,23 @@ class UserStats {
       'totalVotes': totalVotes,
       'totalComments': totalComments,
       'joinedAt': Timestamp.fromDate(joinedAt),
+      'followersCount': followersCount,
+      'followingCount': followingCount,
     };
   }
 
   UserStats copyWith({
     int? totalVotes,
     int? totalComments,
+    int? followersCount,
+    int? followingCount,
   }) {
     return UserStats(
       totalVotes: totalVotes ?? this.totalVotes,
       totalComments: totalComments ?? this.totalComments,
       joinedAt: joinedAt,
+      followersCount: followersCount ?? this.followersCount,
+      followingCount: followingCount ?? this.followingCount,
     );
   }
 }

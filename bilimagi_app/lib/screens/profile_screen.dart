@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../services/profile_service.dart';
 import '../services/auth_service.dart';
+import '../services/follow_service.dart';
 import '../core/theme.dart';
 import 'profile_edit_screen.dart';
 import 'saved_articles_screen.dart';
+import 'followers_screen.dart';
+import 'following_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final String? userId; // null = current user, string = other user
@@ -17,13 +20,17 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final profileService = ProfileService();
-    final isCurrentUser = userId == null;
+    final followService = FollowService();
+    final authService = AuthService();
+    final currentUid = authService.currentUser?.uid;
+    final isCurrentUser = userId == null || userId == currentUid;
+    final targetUid = userId ?? currentUid;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profil'),
         actions: [
-          if (isCurrentUser)
+          if (isCurrentUser && userId == null)
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Çıkış Yap',
@@ -71,7 +78,13 @@ class ProfileScreen extends StatelessWidget {
             return const Center(child: Text('Profil bulunamadı'));
           }
 
-          return _buildProfileContent(context, profile, isCurrentUser);
+          return _buildProfileContent(
+            context,
+            profile,
+            isCurrentUser,
+            followService,
+            targetUid,
+          );
         },
       ),
     );
@@ -81,6 +94,8 @@ class ProfileScreen extends StatelessWidget {
     BuildContext context,
     UserProfile profile,
     bool isCurrentUser,
+    FollowService followService,
+    String? targetUid,
   ) {
     return SingleChildScrollView(
       child: Column(
@@ -113,12 +128,15 @@ class ProfileScreen extends StatelessWidget {
                   profile.email,
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                   ),
                   textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: 16),
+                // Followers / Following counts
+                _buildFollowStats(context, profile),
+                const SizedBox(height: 16),
                 if (isCurrentUser) ...[
-                  const SizedBox(height: 16),
                   // Edit button
                   OutlinedButton.icon(
                     onPressed: () {
@@ -141,6 +159,9 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                ] else ...[
+                  // Follow/Unfollow button for other users
+                  _buildFollowButton(context, followService, profile.uid),
                 ],
               ],
             ),
@@ -313,5 +334,164 @@ class ProfileScreen extends StatelessWidget {
     } else {
       return '${(diff.inDays / 365).floor()} yıl';
     }
+  }
+
+  Widget _buildFollowStats(BuildContext context, UserProfile profile) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Followers
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => FollowersScreen(
+                  userId: profile.uid,
+                  userName: profile.displayName,
+                ),
+              ),
+            );
+          },
+          child: Column(
+            children: [
+              Text(
+                profile.stats.followersCount.toString(),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                'Takipçi',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 32),
+        // Following
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => FollowingScreen(
+                  userId: profile.uid,
+                  userName: profile.displayName,
+                ),
+              ),
+            );
+          },
+          child: Column(
+            children: [
+              Text(
+                profile.stats.followingCount.toString(),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                'Takip',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFollowButton(
+    BuildContext context,
+    FollowService followService,
+    String targetUid,
+  ) {
+    return StreamBuilder<bool>(
+      stream: followService.isFollowing(targetUid),
+      builder: (context, snapshot) {
+        final isFollowing = snapshot.data ?? false;
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+
+        if (isFollowing) {
+          return OutlinedButton.icon(
+            onPressed: isLoading
+                ? null
+                : () async {
+                    try {
+                      await followService.unfollowUser(targetUid);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Takipten çıkıldı'),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Hata: $e')),
+                        );
+                      }
+                    }
+                  },
+            icon: const Icon(Icons.person_remove, size: 18),
+            label: const Text('Takipten Çık'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Colors.white, width: 2),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 10,
+              ),
+            ),
+          );
+        } else {
+          return ElevatedButton.icon(
+            onPressed: isLoading
+                ? null
+                : () async {
+                    try {
+                      await followService.followUser(targetUid);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Takip edildi!'),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Hata: $e')),
+                        );
+                      }
+                    }
+                  },
+            icon: const Icon(Icons.person_add, size: 18),
+            label: const Text('Takip Et'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AppTheme.primaryColor,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 10,
+              ),
+            ),
+          );
+        }
+      },
+    );
   }
 }
