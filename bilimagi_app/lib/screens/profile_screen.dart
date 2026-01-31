@@ -4,6 +4,7 @@ import '../services/profile_service.dart';
 import '../services/auth_service.dart';
 import '../core/theme.dart';
 import 'profile_edit_screen.dart';
+import 'saved_articles_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final String? userId; // null = current user, string = other user
@@ -212,6 +213,31 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+              ),
+            ),
+
+          // Saved Articles (only for current user)
+          if (isCurrentUser)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Card(
+                child: ListTile(
+                  leading: Icon(
+                    Icons.bookmark,
+                    color: AppTheme.accentColor,
+                  ),
+                  title: const Text('Kaydedilen Makaleler'),
+                  subtitle: const Text('Favori makalelerine göz at'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SavedArticlesScreen(),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),

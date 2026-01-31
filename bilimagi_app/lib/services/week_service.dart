@@ -375,4 +375,23 @@ class WeekService {
       return results;
     });
   }
+
+  // v2.0: Get week once (for saved articles navigation)
+  Future<Week?> getWeekOnce(String weekId) async {
+    final doc = await _db.collection('weeks').doc(weekId).get();
+    if (!doc.exists) return null;
+    return Week.fromFirestore(doc);
+  }
+
+  // v2.0: Get article once (for saved articles navigation)
+  Future<Article?> getArticleOnce(String weekId, String articleId) async {
+    final doc = await _db
+        .collection('weeks')
+        .doc(weekId)
+        .collection('articles')
+        .doc(articleId)
+        .get();
+    if (!doc.exists) return null;
+    return Article.fromFirestore(doc);
+  }
 }

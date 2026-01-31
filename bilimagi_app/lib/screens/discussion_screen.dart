@@ -5,6 +5,7 @@ import '../models/article.dart';
 import '../models/comment_tree.dart';
 import '../services/week_service.dart';
 import '../services/vote_service.dart';
+import '../services/bookmark_service.dart';
 import '../core/theme.dart';
 import 'profile_screen.dart';
 
@@ -208,9 +209,55 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bookmarkService = BookmarkService();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tartışma'),
+        actions: [
+          // Bookmark button
+          StreamBuilder<bool>(
+            stream: bookmarkService.isSaved(widget.article.id),
+            builder: (context, snapshot) {
+              final isSaved = snapshot.data ?? false;
+              return IconButton(
+                icon: Icon(
+                  isSaved ? Icons.bookmark : Icons.bookmark_outline,
+                  color: isSaved ? AppTheme.accentColor : null,
+                ),
+                tooltip: isSaved ? 'Kayıttan kaldır' : 'Kaydet',
+                onPressed: () async {
+                  try {
+                    if (isSaved) {
+                      await bookmarkService.unsaveArticle(widget.article.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Kayıt kaldırıldı')),
+                        );
+                      }
+                    } else {
+                      await bookmarkService.saveArticle(
+                        article: widget.article,
+                        week: widget.week,
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Makale kaydedildi!')),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Hata: $e')),
+                      );
+                    }
+                  }
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
