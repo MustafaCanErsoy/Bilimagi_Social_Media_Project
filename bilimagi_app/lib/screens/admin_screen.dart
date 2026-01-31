@@ -163,8 +163,15 @@ class _AdminScreenState extends State<AdminScreen> {
           return const Text('Topluluk bulunamadı.');
         }
 
+        // Ensure selected value exists in the list
+        final communityIds = communities.map((c) => c.id).toList();
+        final validSelectedId = _selectedCommunityId != null &&
+                communityIds.contains(_selectedCommunityId)
+            ? _selectedCommunityId
+            : null;
+
         return DropdownButtonFormField<String>(
-          value: _selectedCommunityId,
+          value: validSelectedId,
           decoration: const InputDecoration(
             border: OutlineInputBorder(),
             labelText: 'Topluluk',

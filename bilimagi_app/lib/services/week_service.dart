@@ -312,12 +312,12 @@ class WeekService {
   }
 
   // v2.0: Get active discussions (for home feed)
+  // Note: Simplified to avoid composite index requirement
   Stream<List<Map<String, dynamic>>> getActiveDiscussions() {
     return _db
         .collection('weeks')
         .where('phase', isEqualTo: 'discussion')
-        .orderBy('createdAt', descending: true)
-        .limit(10)
+        .limit(20) // Fetch more, will sort in memory
         .snapshots()
         .asyncMap((weeksSnapshot) async {
       final List<Map<String, dynamic>> results = [];
@@ -342,17 +342,25 @@ class WeekService {
         });
       }
 
-      return results;
+      // Sort by createdAt in memory (descending - newest first)
+      results.sort((a, b) {
+        final weekA = a['week'] as Week;
+        final weekB = b['week'] as Week;
+        return weekB.createdAt.compareTo(weekA.createdAt);
+      });
+
+      // Return top 10
+      return results.take(10).toList();
     });
   }
 
   // v2.0: Get voting weeks (for home feed)
+  // Note: Simplified to avoid composite index requirement
   Stream<List<Map<String, dynamic>>> getVotingWeeks() {
     return _db
         .collection('weeks')
         .where('phase', isEqualTo: 'voting')
-        .orderBy('createdAt', descending: true)
-        .limit(10)
+        .limit(20) // Fetch more, will sort in memory
         .snapshots()
         .asyncMap((weeksSnapshot) async {
       final List<Map<String, dynamic>> results = [];
@@ -372,7 +380,15 @@ class WeekService {
         });
       }
 
-      return results;
+      // Sort by createdAt in memory (descending - newest first)
+      results.sort((a, b) {
+        final weekA = a['week'] as Week;
+        final weekB = b['week'] as Week;
+        return weekB.createdAt.compareTo(weekA.createdAt);
+      });
+
+      // Return top 10
+      return results.take(10).toList();
     });
   }
 
