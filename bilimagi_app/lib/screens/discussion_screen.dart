@@ -3,9 +3,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/week.dart';
 import '../models/article.dart';
 import '../models/comment_tree.dart';
+import '../models/user_profile.dart';
 import '../services/week_service.dart';
 import '../services/vote_service.dart';
 import '../services/bookmark_service.dart';
+import '../services/mention_service.dart';
 import '../core/theme.dart';
 import 'profile_screen.dart';
 
@@ -25,14 +27,112 @@ class DiscussionScreen extends StatefulWidget {
 
 class _DiscussionScreenState extends State<DiscussionScreen> {
   final _weekService = WeekService();
+  final _mentionService = MentionService();
   final _commentController = TextEditingController();
   bool _sending = false;
   bool _sortByScore = true; // true = Popüler, false = Yeni
 
+  // Mention autocomplete state
+  bool _showMentionSuggestions = false;
+  List<UserProfile> _mentionSuggestions = [];
+  String _mentionQuery = '';
+  int _mentionStartIndex = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _commentController.addListener(_onTextChanged);
+  }
+
   @override
   void dispose() {
+    _commentController.removeListener(_onTextChanged);
     _commentController.dispose();
     super.dispose();
+  }
+
+  void _onTextChanged() {
+    final text = _commentController.text;
+    final selection = _commentController.selection;
+
+    if (!selection.isValid || selection.start != selection.end) {
+      _hideMentionSuggestions();
+      return;
+    }
+
+    final cursorPos = selection.start;
+    final textBeforeCursor = text.substring(0, cursorPos);
+
+    // Find last @ before cursor
+    final lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex == -1) {
+      _hideMentionSuggestions();
+      return;
+    }
+
+    // Check if there's a space between @ and cursor
+    final textAfterAt = textBeforeCursor.substring(lastAtIndex + 1);
+    if (textAfterAt.contains(' ') || textAfterAt.contains('\n')) {
+      _hideMentionSuggestions();
+      return;
+    }
+
+    // We have a potential mention
+    _mentionStartIndex = lastAtIndex;
+    _mentionQuery = textAfterAt;
+    _searchMentions(textAfterAt);
+  }
+
+  Future<void> _searchMentions(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _showMentionSuggestions = true;
+        _mentionSuggestions = [];
+      });
+      return;
+    }
+
+    try {
+      final results = await _mentionService.searchUsers(query);
+      if (mounted && _mentionQuery == query) {
+        setState(() {
+          _showMentionSuggestions = true;
+          _mentionSuggestions = results;
+        });
+      }
+    } catch (e) {
+      // Ignore search errors
+    }
+  }
+
+  void _hideMentionSuggestions() {
+    if (_showMentionSuggestions) {
+      setState(() {
+        _showMentionSuggestions = false;
+        _mentionSuggestions = [];
+        _mentionStartIndex = -1;
+      });
+    }
+  }
+
+  void _insertMention(UserProfile user) {
+    final text = _commentController.text;
+    final cursorPos = _commentController.selection.start;
+
+    // Replace @query with @[displayName](userId)
+    final beforeMention = text.substring(0, _mentionStartIndex);
+    final afterMention = text.substring(cursorPos);
+    final mentionText = MentionService.formatMention(user.displayName, user.uid);
+
+    final newText = '$beforeMention$mentionText $afterMention';
+    _commentController.text = newText;
+
+    // Move cursor after the mention
+    final newCursorPos = beforeMention.length + mentionText.length + 1;
+    _commentController.selection = TextSelection.collapsed(offset: newCursorPos);
+
+    _hideMentionSuggestions();
   }
 
   Future<void> _sendComment() async {
@@ -599,59 +699,168 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
   }
 
   Widget _buildCommentInput() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Mention suggestions
+        if (_showMentionSuggestions) _buildMentionSuggestions(),
+        // Comment input
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _commentController,
-                decoration: InputDecoration(
-                  hintText: 'Yorumunuzu yazın...',
-                  hintStyle: TextStyle(color: AppTheme.textTertiary),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+          child: SafeArea(
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _commentController,
+                    decoration: InputDecoration(
+                      hintText: 'Yorumunuzu yazın... (@ile etiketle)',
+                      hintStyle: TextStyle(color: AppTheme.textTertiary),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    maxLines: null,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendComment(),
                   ),
                 ),
-                maxLines: null,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendComment(),
-              ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  onPressed: _sending ? null : _sendComment,
+                  icon: _sending
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.send),
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              onPressed: _sending ? null : _sendComment,
-              icon: _sending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.send),
-              style: IconButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMentionSuggestions() {
+    if (_mentionSuggestions.isEmpty && _mentionQuery.isNotEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: AppTheme.textTertiary.withValues(alpha: 0.2)),
+          ),
+        ),
+        child: Text(
+          'Kullanıcı bulunamadı',
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 14,
+          ),
+        ),
+      );
+    }
+
+    if (_mentionSuggestions.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: AppTheme.textTertiary.withValues(alpha: 0.2)),
+          ),
+        ),
+        child: Text(
+          'Etiketlemek için yazmaya başlayın...',
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 14,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 200),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: AppTheme.textTertiary.withValues(alpha: 0.2)),
         ),
       ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        itemCount: _mentionSuggestions.length,
+        itemBuilder: (context, index) {
+          final user = _mentionSuggestions[index];
+          return ListTile(
+            leading: CircleAvatar(
+              radius: 18,
+              backgroundColor: _getAvatarColor(user.uid),
+              child: Text(
+                user.displayName.isNotEmpty
+                    ? user.displayName[0].toUpperCase()
+                    : '?',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            title: Text(
+              user.displayName,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(
+              user.email,
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+            dense: true,
+            onTap: () => _insertMention(user),
+          );
+        },
+      ),
     );
+  }
+
+  Color _getAvatarColor(String uid) {
+    final colors = [
+      AppTheme.primaryColor,
+      AppTheme.secondaryColor,
+      const Color(0xFF9B59B6),
+      const Color(0xFF3498DB),
+      const Color(0xFFE74C3C),
+      const Color(0xFF2ECC71),
+      const Color(0xFFF39C12),
+      const Color(0xFF1ABC9C),
+    ];
+    return colors[uid.hashCode.abs() % colors.length];
   }
 }
 
@@ -739,15 +948,8 @@ class _CommentCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 4),
-                // Comment text
-                Text(
-                  comment.text,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: AppTheme.textPrimary,
-                    height: 1.4,
-                  ),
-                ),
+                // Comment text with mentions
+                _buildCommentText(context, comment.text),
                 const SizedBox(height: 6),
                 // Vote and reply buttons
                 Row(
@@ -797,6 +999,61 @@ class _CommentCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCommentText(BuildContext context, String text) {
+    final segments = MentionService.parseTextSegments(text);
+
+    if (segments.isEmpty) {
+      return Text(
+        text,
+        style: TextStyle(
+          fontSize: 15,
+          color: AppTheme.textPrimary,
+          height: 1.4,
+        ),
+      );
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: 15,
+          color: AppTheme.textPrimary,
+          height: 1.4,
+        ),
+        children: segments.map((segment) {
+          if (segment.isMention) {
+            return WidgetSpan(
+              child: GestureDetector(
+                onTap: () {
+                  if (segment.userId != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            ProfileScreen(userId: segment.userId),
+                      ),
+                    );
+                  }
+                },
+                child: Text(
+                  segment.text,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: AppTheme.primaryColor,
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            );
+          } else {
+            return TextSpan(text: segment.text);
+          }
+        }).toList(),
       ),
     );
   }
