@@ -27,13 +27,17 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
     } catch (e) {
-      setState(() {
-        _error = 'Login failed. Check your email and password.';
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Login failed. Check your email and password.';
+        });
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
