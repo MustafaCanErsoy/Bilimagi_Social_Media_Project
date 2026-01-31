@@ -15,7 +15,6 @@ class CommunitySelectScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Topluluklar'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
             icon: const Icon(Icons.admin_panel_settings),

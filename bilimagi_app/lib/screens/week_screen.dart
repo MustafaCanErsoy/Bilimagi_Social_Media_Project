@@ -79,7 +79,6 @@ class _WeekScreenState extends State<WeekScreen> {
       return Scaffold(
         appBar: AppBar(
           title: Text(widget.community.name),
-          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         ),
         body: const Center(
           child: Text('Bu topluluk için aktif hafta bulunmuyor.'),
@@ -90,7 +89,6 @@ class _WeekScreenState extends State<WeekScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.community.name),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: StreamBuilder<Week?>(
         stream: _weekService.getWeek(weekId),
