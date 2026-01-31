@@ -4,6 +4,7 @@ import '../models/week.dart';
 import '../models/article.dart';
 import '../services/week_service.dart';
 import '../core/theme.dart';
+import 'profile_screen.dart';
 
 class DiscussionScreen extends StatefulWidget {
   final Week week;
@@ -428,13 +429,24 @@ class _CommentCard extends StatelessWidget {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        comment.displayName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  ProfileScreen(userId: comment.uid),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          comment.displayName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 8),

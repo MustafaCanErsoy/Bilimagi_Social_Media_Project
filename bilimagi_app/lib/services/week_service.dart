@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/week.dart';
 import '../models/article.dart';
+import 'profile_service.dart';
 
 class Comment {
   final String id;
@@ -33,6 +34,7 @@ class Comment {
 class WeekService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final _profileService = ProfileService();
 
   // Get week by ID (stream for realtime phase updates)
   Stream<Week?> getWeek(String weekId) {
@@ -160,6 +162,9 @@ class WeekService {
     });
 
     await batch.commit();
+
+    // Increment user vote stats
+    await _profileService.incrementStats(votes: 1);
   }
 
   // Change week phase (admin only)
@@ -232,5 +237,8 @@ class WeekService {
       'text': text,
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    // Increment user comment stats
+    await _profileService.incrementStats(comments: 1);
   }
 }
