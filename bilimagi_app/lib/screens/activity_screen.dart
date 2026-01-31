@@ -288,6 +288,13 @@ class _ActivityScreenState extends State<ActivityScreen> {
           ),
         );
         break;
+      case NotificationType.membershipRequest:
+      case NotificationType.membershipApproved:
+      case NotificationType.membershipRejected:
+      case NotificationType.suggestionApproved:
+      case NotificationType.suggestionRejected:
+        // TODO: Navigate to community or week when deep linking is supported
+        break;
     }
   }
 }
@@ -404,6 +411,15 @@ class _NotificationTile extends StatelessWidget {
         return Icons.reply;
       case NotificationType.upvote:
         return Icons.thumb_up;
+      case NotificationType.membershipRequest:
+        return Icons.person_add_alt;
+      case NotificationType.membershipApproved:
+        return Icons.check_circle;
+      case NotificationType.membershipRejected:
+        return Icons.cancel;
+      case NotificationType.suggestionApproved:
+      case NotificationType.suggestionRejected:
+        return Icons.article;
     }
   }
 
@@ -417,6 +433,16 @@ class _NotificationTile extends StatelessWidget {
         return const Color(0xFF2ECC71);
       case NotificationType.upvote:
         return const Color(0xFFF39C12);
+      case NotificationType.membershipRequest:
+        return AppTheme.primaryColor;
+      case NotificationType.membershipApproved:
+        return AppTheme.secondaryColor;
+      case NotificationType.membershipRejected:
+        return AppTheme.errorColor;
+      case NotificationType.suggestionApproved:
+        return AppTheme.secondaryColor;
+      case NotificationType.suggestionRejected:
+        return AppTheme.errorColor;
     }
   }
 

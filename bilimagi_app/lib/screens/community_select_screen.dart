@@ -1,14 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/firestore_service.dart';
+import '../services/community_service.dart';
 import '../models/community.dart';
+import '../models/community_membership.dart';
+import '../core/theme.dart';
+import '../widgets/community_card.dart';
 import 'week_screen.dart';
 import 'admin_screen.dart';
+import 'community_create_screen.dart';
 
-class CommunitySelectScreen extends StatelessWidget {
-  CommunitySelectScreen({super.key});
+class CommunitySelectScreen extends StatefulWidget {
+  const CommunitySelectScreen({super.key});
 
-  final _firestoreService = FirestoreService();
+  @override
+  State<CommunitySelectScreen> createState() => _CommunitySelectScreenState();
+}
+
+class _CommunitySelectScreenState extends State<CommunitySelectScreen>
+    with SingleTickerProviderStateMixin {
+  final _communityService = CommunityService();
+  final _auth = FirebaseAuth.instance;
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createCommunity() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const CommunityCreateScreen()),
+    );
+
+    if (result == true) {
+      // Refresh will happen automatically via stream
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,52 +62,159 @@ class CommunitySelectScreen extends StatelessWidget {
             },
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Keşfet'),
+            Tab(text: 'Katıldıklarım'),
+          ],
+        ),
       ),
-      body: StreamBuilder<List<Community>>(
-        stream: _firestoreService.getCommunities(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildAllCommunitiesList(),
+          _buildMyCommunities(),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _createCommunity,
+        icon: const Icon(Icons.add),
+        label: const Text('Topluluk Oluştur'),
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
+      ),
+    );
+  }
 
-          if (snapshot.hasError) {
-            return Center(child: Text('Hata: ${snapshot.error}'));
-          }
+  Widget _buildAllCommunitiesList() {
+    return StreamBuilder<List<Community>>(
+      stream: _communityService.getPublicCommunities(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          final communities = snapshot.data ?? [];
+        if (snapshot.hasError) {
+          return Center(child: Text('Hata: ${snapshot.error}'));
+        }
 
-          if (communities.isEmpty) {
-            return const Center(child: Text('Topluluk bulunamadı.'));
-          }
+        final communities = snapshot.data ?? [];
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: communities.length,
-            itemBuilder: (context, index) {
-              final community = communities[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 16),
-                child: ListTile(
-                  title: Text(
-                    community.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(community.description),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => WeekScreen(community: community),
-                      ),
-                    );
-                  },
+        if (communities.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.groups_outlined,
+                  size: 64,
+                  color: AppTheme.getTextTertiary(context),
                 ),
-              );
-            },
+                const SizedBox(height: 16),
+                Text(
+                  'Henüz topluluk yok',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                const Text('İlk topluluğu siz oluşturun!'),
+              ],
+            ),
           );
-        },
-      ),
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.only(top: 8, bottom: 80),
+          itemCount: communities.length,
+          itemBuilder: (context, index) {
+            final community = communities[index];
+            return _buildCommunityItem(community);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMyCommunities() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      return const Center(child: Text('Giriş yapınız'));
+    }
+
+    return StreamBuilder<List<Community>>(
+      stream: _communityService.getUserCommunities(uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final communities = snapshot.data ?? [];
+
+        if (communities.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.group_add_outlined,
+                  size: 64,
+                  color: AppTheme.getTextTertiary(context),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Henüz bir topluluğa katılmadınız',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                const Text('Keşfet sekmesinden topluluklara katılabilirsiniz'),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.only(top: 8, bottom: 80),
+          itemCount: communities.length,
+          itemBuilder: (context, index) {
+            final community = communities[index];
+            return _buildCommunityItem(community, showManage: true);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCommunityItem(Community community, {bool showManage = false}) {
+    return CommunityCard(
+      community: community,
+      showMembershipButton: !showManage,
+      onTap: () async {
+        // Check membership status
+        final uid = _auth.currentUser?.uid;
+        if (uid == null) return;
+
+        final membership = await _communityService
+            .getMembershipStatus(community.id)
+            .first;
+
+        if (membership != MemberStatus.approved && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Bu topluluğu görüntülemek için üye olmanız gerekiyor'),
+            ),
+          );
+          return;
+        }
+
+        if (context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => WeekScreen(community: community),
+            ),
+          );
+        }
+      },
     );
   }
 }

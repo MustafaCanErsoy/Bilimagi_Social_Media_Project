@@ -4,6 +4,102 @@ All notable changes to Bilimagi will be documented in this file.
 
 ---
 
+## [v5.0] - 2026-02-01
+
+### Added - Community Creation & Article Suggestion System
+
+**Topluluk Oluşturma:**
+- Kullanıcılar kendi topluluklarını oluşturabilir
+- Hibrit kategori sistemi (Fizik, Biyoloji, Kimya, Matematik, Tıp, Mühendislik, Psikoloji + Diğer)
+- Emoji simgesi seçimi (24 bilim temalı emoji)
+- Renk paleti seçimi (8 renk)
+- Topluluk istatistikleri (üye, hafta, makale sayısı)
+
+**Üyelik Sistemi:**
+- Üyelik başvurusu (onay gerekli)
+- Owner/Moderator tarafından onay/red
+- Rol hiyerarşisi: Owner > Moderator > Member
+- Üye yönetimi (rol değiştirme, çıkarma)
+- Bekleyen başvuru badge'leri
+
+**Makale Önerisi Sistemi:**
+- Oylama fazında makale önerisi gönderme
+- İlgi oyları (diğer üyelerden)
+- Moderatör inceleme ve onay/red
+- Onaylanan öneriler otomatik makaleye dönüşür
+- Red sebebi girişi
+
+**Yeni Bildirimler:**
+- `membershipRequest` - Üyelik başvurusu (owner/mod'a)
+- `membershipApproved` - Üyelik onaylandı (kullanıcıya)
+- `membershipRejected` - Üyelik reddedildi (kullanıcıya)
+- `suggestionApproved` - Öneri onaylandı (öneren kişiye)
+- `suggestionRejected` - Öneri reddedildi (öneren kişiye)
+
+**Yeni Dosyalar:**
+
+*Models:*
+- `lib/models/community_membership.dart` - MemberRole, MemberStatus enums + model
+- `lib/models/article_suggestion.dart` - SuggestionStatus enum + model
+
+*Services:*
+- `lib/services/community_service.dart` - CRUD, üyelik, rol yönetimi
+- `lib/services/suggestion_service.dart` - Öneri, onay, ilgi oyu
+
+*Widgets:*
+- `lib/widgets/community_card.dart` - Topluluk kartı
+- `lib/widgets/member_list_tile.dart` - Üye liste öğesi
+- `lib/widgets/community_icon_picker.dart` - Emoji/renk seçici
+- `lib/widgets/suggestion_card.dart` - Öneri kartı
+
+*Screens:*
+- `lib/screens/community_create_screen.dart` - Topluluk oluşturma formu
+- `lib/screens/community_manage_screen.dart` - Topluluk yönetimi
+- `lib/screens/community_members_screen.dart` - Üye listesi ve yönetimi
+- `lib/screens/suggestion_screen.dart` - Makale önerisi formu
+- `lib/screens/suggestion_review_screen.dart` - Öneri inceleme (mod)
+
+### Changed
+
+**Güncellenen Modeller:**
+- `lib/models/community.dart` - category, customCategory, iconEmoji, colorIndex, createdAt, isPublic, CommunityStats alanları eklendi
+
+**Güncellenen Servisler:**
+- `lib/services/notification_service.dart` - 5 yeni bildirim türü ve metodları
+
+**Güncellenen Ekranlar:**
+- `lib/screens/community_select_screen.dart` - Tab görünümü (Keşfet/Katıldıklarım), FAB
+- `lib/screens/week_screen.dart` - Öneri butonları, yönetim erişimi
+- `lib/screens/activity_screen.dart` - Yeni bildirim türleri switch desteği
+
+### Firestore Schema Changes
+
+**communities/{communityId}:**
+- `+category: string`
+- `+customCategory: string?`
+- `+iconEmoji: string?`
+- `+colorIndex: number`
+- `+createdAt: timestamp`
+- `+isPublic: boolean`
+- `+stats: {memberCount, weekCount, totalArticles}`
+
+**communities/{communityId}/members/{uid} (NEW):**
+- `role: "owner" | "moderator" | "member"`
+- `status: "pending" | "approved" | "rejected"`
+- `displayName: string`
+- `requestedAt: timestamp`
+- `approvedAt: timestamp?`
+- `approvedByUid: string?`
+
+**weeks/{weekId}/suggestions/{suggestionId} (NEW):**
+- `title, summary, link: string`
+- `submitterUid, submitterDisplayName: string`
+- `status: "pending" | "approved" | "rejected"`
+- `interestScore: number`
+- `createdAt, reviewedAt: timestamp`
+
+---
+
 ## [v4.2] - 2026-02-01
 
 ### Added - UX İyileştirmeleri

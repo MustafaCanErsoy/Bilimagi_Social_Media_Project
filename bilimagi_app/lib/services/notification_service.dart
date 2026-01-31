@@ -6,6 +6,12 @@ enum NotificationType {
   mention,   // Someone mentioned you in a comment
   reply,     // Someone replied to your comment
   upvote,    // Someone upvoted your comment
+  // v5.0 new types
+  membershipRequest,   // Someone requested to join your community
+  membershipApproved,  // Your membership was approved
+  membershipRejected,  // Your membership was rejected
+  suggestionApproved,  // Your article suggestion was approved
+  suggestionRejected,  // Your article suggestion was rejected
 }
 
 class AppNotification {
@@ -17,6 +23,8 @@ class AppNotification {
   final String? weekId;
   final String? articleId;
   final String? preview;       // Comment preview text
+  final String? communityId;   // v5.0: for membership notifications
+  final String? communityName; // v5.0: for membership notifications
   final DateTime createdAt;
   final bool read;
 
@@ -29,6 +37,8 @@ class AppNotification {
     this.weekId,
     this.articleId,
     this.preview,
+    this.communityId,
+    this.communityName,
     required this.createdAt,
     this.read = false,
   });
@@ -47,6 +57,8 @@ class AppNotification {
       weekId: data['weekId'],
       articleId: data['articleId'],
       preview: data['preview'],
+      communityId: data['communityId'],
+      communityName: data['communityName'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       read: data['read'] ?? false,
     );
@@ -61,6 +73,8 @@ class AppNotification {
       if (weekId != null) 'weekId': weekId,
       if (articleId != null) 'articleId': articleId,
       if (preview != null) 'preview': preview,
+      if (communityId != null) 'communityId': communityId,
+      if (communityName != null) 'communityName': communityName,
       'createdAt': FieldValue.serverTimestamp(),
       'read': read,
     };
@@ -76,6 +90,16 @@ class AppNotification {
         return '$fromDisplayName yorumuna yanıt verdi';
       case NotificationType.upvote:
         return '$fromDisplayName yorumunu beğendi';
+      case NotificationType.membershipRequest:
+        return '$fromDisplayName ${communityName ?? 'topluluğa'} katılmak istiyor';
+      case NotificationType.membershipApproved:
+        return '${communityName ?? 'Topluluk'} üyeliğiniz onaylandı';
+      case NotificationType.membershipRejected:
+        return '${communityName ?? 'Topluluk'} üyeliğiniz reddedildi';
+      case NotificationType.suggestionApproved:
+        return 'Makale öneriniz onaylandı: ${preview ?? ''}';
+      case NotificationType.suggestionRejected:
+        return 'Makale öneriniz reddedildi: ${preview ?? ''}';
     }
   }
 
@@ -89,6 +113,16 @@ class AppNotification {
         return 'reply';
       case NotificationType.upvote:
         return 'thumb_up';
+      case NotificationType.membershipRequest:
+        return 'person_add_alt';
+      case NotificationType.membershipApproved:
+        return 'check_circle';
+      case NotificationType.membershipRejected:
+        return 'cancel';
+      case NotificationType.suggestionApproved:
+        return 'article';
+      case NotificationType.suggestionRejected:
+        return 'article';
     }
   }
 }
@@ -288,6 +322,132 @@ class NotificationService {
           targetId: commentId,
           weekId: weekId,
           articleId: articleId,
+          createdAt: DateTime.now(),
+        ).toFirestore());
+  }
+
+  // ==================== v5.0 MEMBERSHIP NOTIFICATIONS ====================
+
+  /// Create a membership request notification (to owner/mods)
+  Future<void> createMembershipRequestNotification({
+    required String targetUid,
+    required String fromDisplayName,
+    required String communityId,
+    required String communityName,
+  }) async {
+    final uid = _currentUid;
+    if (uid == null || uid == targetUid) return;
+
+    await _firestore
+        .collection('users')
+        .doc(targetUid)
+        .collection('notifications')
+        .add(AppNotification(
+          id: '',
+          type: NotificationType.membershipRequest,
+          fromUid: uid,
+          fromDisplayName: fromDisplayName,
+          communityId: communityId,
+          communityName: communityName,
+          createdAt: DateTime.now(),
+        ).toFirestore());
+  }
+
+  /// Create a membership approved notification
+  Future<void> createMembershipApprovedNotification({
+    required String targetUid,
+    required String communityId,
+    required String communityName,
+  }) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(targetUid)
+        .collection('notifications')
+        .add(AppNotification(
+          id: '',
+          type: NotificationType.membershipApproved,
+          fromUid: uid,
+          fromDisplayName: communityName,
+          communityId: communityId,
+          communityName: communityName,
+          createdAt: DateTime.now(),
+        ).toFirestore());
+  }
+
+  /// Create a membership rejected notification
+  Future<void> createMembershipRejectedNotification({
+    required String targetUid,
+    required String communityId,
+    required String communityName,
+  }) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(targetUid)
+        .collection('notifications')
+        .add(AppNotification(
+          id: '',
+          type: NotificationType.membershipRejected,
+          fromUid: uid,
+          fromDisplayName: communityName,
+          communityId: communityId,
+          communityName: communityName,
+          createdAt: DateTime.now(),
+        ).toFirestore());
+  }
+
+  // ==================== v5.0 SUGGESTION NOTIFICATIONS ====================
+
+  /// Create a suggestion approved notification
+  Future<void> createSuggestionApprovedNotification({
+    required String targetUid,
+    required String suggestionTitle,
+    required String weekId,
+  }) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(targetUid)
+        .collection('notifications')
+        .add(AppNotification(
+          id: '',
+          type: NotificationType.suggestionApproved,
+          fromUid: uid,
+          fromDisplayName: 'Sistem',
+          weekId: weekId,
+          preview: suggestionTitle,
+          createdAt: DateTime.now(),
+        ).toFirestore());
+  }
+
+  /// Create a suggestion rejected notification
+  Future<void> createSuggestionRejectedNotification({
+    required String targetUid,
+    required String suggestionTitle,
+    required String weekId,
+    String? reason,
+  }) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(targetUid)
+        .collection('notifications')
+        .add(AppNotification(
+          id: '',
+          type: NotificationType.suggestionRejected,
+          fromUid: uid,
+          fromDisplayName: 'Sistem',
+          weekId: weekId,
+          preview: suggestionTitle,
           createdAt: DateTime.now(),
         ).toFirestore());
   }

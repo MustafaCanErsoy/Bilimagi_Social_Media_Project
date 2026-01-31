@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import '../models/community.dart';
+import '../models/community_membership.dart';
 import '../models/week.dart';
 import '../models/article.dart';
+import '../core/theme.dart';
 import '../services/week_service.dart';
+import '../services/community_service.dart';
+import '../services/suggestion_service.dart';
 import 'discussion_screen.dart';
+import 'suggestion_screen.dart';
+import 'suggestion_review_screen.dart';
+import 'community_manage_screen.dart';
+import 'community_members_screen.dart';
 
 class WeekScreen extends StatefulWidget {
   final Community community;
@@ -16,13 +24,25 @@ class WeekScreen extends StatefulWidget {
 
 class _WeekScreenState extends State<WeekScreen> {
   final _weekService = WeekService();
+  final _communityService = CommunityService();
+  final _suggestionService = SuggestionService();
   String? _userVote;
   bool _loadingVote = true;
+  MemberRole? _userRole;
 
   @override
   void initState() {
     super.initState();
     _loadUserVote();
+    _loadUserRole();
+  }
+
+  void _loadUserRole() {
+    _communityService.getUserRole(widget.community.id).listen((role) {
+      if (mounted) {
+        setState(() => _userRole = role);
+      }
+    });
   }
 
   Future<void> _loadUserVote() async {
@@ -74,14 +94,105 @@ class _WeekScreenState extends State<WeekScreen> {
   @override
   Widget build(BuildContext context) {
     final weekId = widget.community.currentWeekId;
+    final canManage = _userRole == MemberRole.owner || _userRole == MemberRole.moderator;
 
     if (weekId == null) {
       return Scaffold(
         appBar: AppBar(
           title: Text(widget.community.name),
+          actions: [
+            if (canManage)
+              IconButton(
+                icon: const Icon(Icons.settings),
+                tooltip: 'Topluluk Yönetimi',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CommunityManageScreen(communityId: widget.community.id),
+                    ),
+                  );
+                },
+              ),
+          ],
         ),
-        body: const Center(
-          child: Text('Bu topluluk için aktif hafta bulunmuyor.'),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.calendar_today_outlined,
+                  size: 64,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Bu topluluk için aktif hafta bulunmuyor.',
+                  textAlign: TextAlign.center,
+                ),
+                if (canManage) ...[
+                  const SizedBox(height: 32),
+                  // Üye Yönetimi butonu
+                  StreamBuilder<int>(
+                    stream: _communityService.getPendingMemberCount(widget.community.id),
+                    builder: (context, snapshot) {
+                      final pendingCount = snapshot.data ?? 0;
+                      return SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => CommunityMembersScreen(
+                                  communityId: widget.community.id,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: Badge(
+                            isLabelVisible: pendingCount > 0,
+                            label: Text('$pendingCount'),
+                            child: const Icon(Icons.people),
+                          ),
+                          label: Text(pendingCount > 0
+                              ? 'Üye İstekleri ($pendingCount bekleyen)'
+                              : 'Üyeleri Yönet'),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  // Yeni Hafta butonu
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        try {
+                          await _communityService.createNewWeek(widget.community.id);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Yeni hafta oluşturuldu!')),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Hata: $e')),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Yeni Hafta Başlat'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -89,6 +200,21 @@ class _WeekScreenState extends State<WeekScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.community.name),
+        actions: [
+          if (canManage)
+            IconButton(
+              icon: const Icon(Icons.settings),
+              tooltip: 'Topluluk Yönetimi',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CommunityManageScreen(communityId: widget.community.id),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
       body: StreamBuilder<Week?>(
         stream: _weekService.getWeek(weekId),
@@ -105,6 +231,8 @@ class _WeekScreenState extends State<WeekScreen> {
           return Column(
             children: [
               _buildPhaseIndicator(week),
+              if (week.phase == WeekPhase.voting)
+                _buildSuggestionButtons(week),
               Expanded(
                 child: _buildArticleList(week),
               ),
@@ -151,6 +279,58 @@ class _WeekScreenState extends State<WeekScreen> {
               color: phaseColor,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestionButtons(Week week) {
+    final canManage = _userRole == MemberRole.owner || _userRole == MemberRole.moderator;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SuggestionScreen(weekId: week.id),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Makale Öner'),
+            ),
+          ),
+          if (canManage) ...[
+            const SizedBox(width: 12),
+            StreamBuilder<int>(
+              stream: _suggestionService.getPendingSuggestionCount(week.id),
+              builder: (context, snapshot) {
+                final count = snapshot.data ?? 0;
+                return Badge(
+                  isLabelVisible: count > 0,
+                  label: Text('$count'),
+                  backgroundColor: AppTheme.accentColor,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SuggestionReviewScreen(weekId: week.id),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.rate_review),
+                    label: const Text('Önerileri İncele'),
+                  ),
+                );
+              },
+            ),
+          ],
         ],
       ),
     );
