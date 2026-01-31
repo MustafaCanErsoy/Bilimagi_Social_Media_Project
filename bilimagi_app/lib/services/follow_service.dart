@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_profile.dart';
+import 'notification_service.dart';
 
 class FollowService {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
+  final _notificationService = NotificationService();
 
   String? get _currentUid => _auth.currentUser?.uid;
 
@@ -64,6 +66,20 @@ class FollowService {
     });
 
     await batch.commit();
+
+    // Send follow notification (don't await to avoid blocking)
+    try {
+      final currentUserDoc = await _firestore.collection('users').doc(uid).get();
+      final displayName = currentUserDoc.data()?['displayName'] ?? 'Birisi';
+
+      await _notificationService.createFollowNotification(
+        targetUid: targetUid,
+        fromDisplayName: displayName,
+        fromUid: uid,
+      );
+    } catch (e) {
+      print('Follow notification error: $e');
+    }
   }
 
   /// Unfollow a user

@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'notification_service.dart';
 
 enum VoteType { up, down }
 
 class VoteService {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
+  final _notificationService = NotificationService();
 
   /// Vote on a comment (upvote or downvote)
   Future<void> voteComment({
@@ -94,6 +96,29 @@ class VoteService {
     }
 
     await batch.commit();
+
+    // Send upvote notification (only for new upvotes, not for removing or changing votes)
+    if (currentType == null && type == VoteType.up) {
+      try {
+        final commentDoc = await commentRef.get();
+        final commentAuthorUid = commentDoc.data()?['uid'] as String?;
+
+        if (commentAuthorUid != null && commentAuthorUid != uid) {
+          final userDoc = await _firestore.collection('users').doc(uid).get();
+          final displayName = userDoc.data()?['displayName'] ?? 'Birisi';
+
+          await _notificationService.createUpvoteNotification(
+            targetUid: commentAuthorUid,
+            fromDisplayName: displayName,
+            weekId: weekId,
+            articleId: articleId,
+            commentId: commentId,
+          );
+        }
+      } catch (e) {
+        print('Upvote notification error: $e');
+      }
+    }
   }
 
   /// Get current user's vote on a comment

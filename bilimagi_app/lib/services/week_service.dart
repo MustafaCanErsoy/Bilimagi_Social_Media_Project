@@ -4,6 +4,8 @@ import '../models/week.dart';
 import '../models/article.dart';
 import '../models/community.dart';
 import 'profile_service.dart';
+import 'notification_service.dart';
+import 'mention_service.dart';
 
 class Comment {
   final String id;
@@ -58,6 +60,7 @@ class WeekService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final _profileService = ProfileService();
+  final _notificationService = NotificationService();
 
   // Get week by ID (stream for realtime phase updates)
   Stream<Week?> getWeek(String weekId) {
@@ -248,7 +251,11 @@ class WeekService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not logged in');
 
-    await _db
+    // Get user's display name from profile
+    final userDoc = await _db.collection('users').doc(user.uid).get();
+    final displayName = userDoc.data()?['displayName'] ?? 'Anonim';
+
+    final newCommentRef = await _db
         .collection('weeks')
         .doc(weekId)
         .collection('articles')
@@ -256,7 +263,7 @@ class WeekService {
         .collection('comments')
         .add({
       'uid': user.uid,
-      'displayName': user.displayName ?? user.email ?? 'Anonim',
+      'displayName': displayName,
       'text': text,
       'createdAt': FieldValue.serverTimestamp(),
       'depth': 0, // Top-level comment
@@ -268,6 +275,25 @@ class WeekService {
 
     // Increment user comment stats
     await _profileService.incrementStats(comments: 1);
+
+    // Send mention notifications
+    try {
+      final mentionedUids = MentionService.parseMentions(text);
+      for (final mentionedUid in mentionedUids) {
+        if (mentionedUid != user.uid) {
+          await _notificationService.createMentionNotification(
+            targetUid: mentionedUid,
+            fromDisplayName: displayName,
+            weekId: weekId,
+            articleId: articleId,
+            commentId: newCommentRef.id,
+            preview: MentionService.getDisplayText(text.length > 100 ? '${text.substring(0, 100)}...' : text),
+          );
+        }
+      }
+    } catch (e) {
+      print('Mention notification error: $e');
+    }
   }
 
   // v2.0: Add reply to a comment
@@ -281,6 +307,10 @@ class WeekService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not logged in');
 
+    // Get user's display name from profile
+    final userDoc = await _db.collection('users').doc(user.uid).get();
+    final displayName = userDoc.data()?['displayName'] ?? 'Anonim';
+
     final commentsRef = _db
         .collection('weeks')
         .doc(weekId)
@@ -289,9 +319,9 @@ class WeekService {
         .collection('comments');
 
     // Add the reply
-    await commentsRef.add({
+    final newCommentRef = await commentsRef.add({
       'uid': user.uid,
-      'displayName': user.displayName ?? user.email ?? 'Anonim',
+      'displayName': displayName,
       'text': text,
       'createdAt': FieldValue.serverTimestamp(),
       'parentId': parentCommentId,
@@ -309,6 +339,45 @@ class WeekService {
 
     // Increment user comment stats
     await _profileService.incrementStats(comments: 1);
+
+    // Send reply notification to parent comment author
+    try {
+      final parentDoc = await commentsRef.doc(parentCommentId).get();
+      if (parentDoc.exists) {
+        final parentUid = parentDoc.data()?['uid'] as String?;
+        if (parentUid != null && parentUid != user.uid) {
+          await _notificationService.createReplyNotification(
+            targetUid: parentUid,
+            fromDisplayName: displayName,
+            weekId: weekId,
+            articleId: articleId,
+            commentId: newCommentRef.id,
+            preview: MentionService.getDisplayText(text.length > 100 ? '${text.substring(0, 100)}...' : text),
+          );
+        }
+      }
+    } catch (e) {
+      print('Reply notification error: $e');
+    }
+
+    // Send mention notifications
+    try {
+      final mentionedUids = MentionService.parseMentions(text);
+      for (final mentionedUid in mentionedUids) {
+        if (mentionedUid != user.uid) {
+          await _notificationService.createMentionNotification(
+            targetUid: mentionedUid,
+            fromDisplayName: displayName,
+            weekId: weekId,
+            articleId: articleId,
+            commentId: newCommentRef.id,
+            preview: MentionService.getDisplayText(text.length > 100 ? '${text.substring(0, 100)}...' : text),
+          );
+        }
+      }
+    } catch (e) {
+      print('Mention notification error: $e');
+    }
   }
 
   // v2.0: Get active discussions (for home feed)

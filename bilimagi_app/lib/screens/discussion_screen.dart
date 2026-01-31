@@ -38,6 +38,9 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
   String _mentionQuery = '';
   int _mentionStartIndex = -1;
 
+  // Store mentioned users: displayName -> userId
+  final Map<String, String> _mentionedUsers = {};
+
   @override
   void initState() {
     super.initState();
@@ -120,19 +123,33 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
     final text = _commentController.text;
     final cursorPos = _commentController.selection.start;
 
-    // Replace @query with @[displayName](userId)
+    // Store the mention mapping
+    _mentionedUsers[user.displayName] = user.uid;
+
+    // Replace @query with @displayName (user-friendly display)
     final beforeMention = text.substring(0, _mentionStartIndex);
     final afterMention = text.substring(cursorPos);
-    final mentionText = MentionService.formatMention(user.displayName, user.uid);
+    final displayMention = '@${user.displayName}';
 
-    final newText = '$beforeMention$mentionText $afterMention';
+    final newText = '$beforeMention$displayMention $afterMention';
     _commentController.text = newText;
 
     // Move cursor after the mention
-    final newCursorPos = beforeMention.length + mentionText.length + 1;
+    final newCursorPos = beforeMention.length + displayMention.length + 1;
     _commentController.selection = TextSelection.collapsed(offset: newCursorPos);
 
     _hideMentionSuggestions();
+  }
+
+  // Convert display mentions to storage format before sending
+  String _convertMentionsToStorageFormat(String text) {
+    String result = text;
+    for (final entry in _mentionedUsers.entries) {
+      final displayFormat = '@${entry.key}';
+      final storageFormat = MentionService.formatMention(entry.key, entry.value);
+      result = result.replaceAll(displayFormat, storageFormat);
+    }
+    return result;
   }
 
   Future<void> _sendComment() async {
@@ -142,12 +159,16 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
     setState(() => _sending = true);
 
     try {
+      // Convert @displayName to @[displayName](userId) format
+      final formattedText = _convertMentionsToStorageFormat(text);
+
       await _weekService.addComment(
         widget.week.id,
         widget.article.id,
-        text,
+        formattedText,
       );
       _commentController.clear();
+      _mentionedUsers.clear(); // Clear mentioned users after sending
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1006,9 +1027,10 @@ class _CommentCard extends StatelessWidget {
   Widget _buildCommentText(BuildContext context, String text) {
     final segments = MentionService.parseTextSegments(text);
 
+    // If no segments parsed, show display text (with userId stripped)
     if (segments.isEmpty) {
       return Text(
-        text,
+        MentionService.getDisplayText(text),
         style: TextStyle(
           fontSize: 15,
           color: AppTheme.textPrimary,
