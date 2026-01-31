@@ -16,6 +16,11 @@ class Comment {
   final int depth; // 0 = top-level, 1+ = nested
   final int replyCount; // number of direct replies
 
+  // v2.0: Voting fields
+  final int upvoteCount;
+  final int downvoteCount;
+  final int score; // upvoteCount - downvoteCount
+
   Comment({
     required this.id,
     required this.uid,
@@ -25,6 +30,9 @@ class Comment {
     this.parentId,
     this.depth = 0,
     this.replyCount = 0,
+    this.upvoteCount = 0,
+    this.downvoteCount = 0,
+    this.score = 0,
   });
 
   factory Comment.fromFirestore(DocumentSnapshot doc) {
@@ -38,6 +46,9 @@ class Comment {
       parentId: data['parentId'],
       depth: data['depth'] ?? 0,
       replyCount: data['replyCount'] ?? 0,
+      upvoteCount: data['upvoteCount'] ?? 0,
+      downvoteCount: data['downvoteCount'] ?? 0,
+      score: data['score'] ?? 0,
     );
   }
 }
@@ -249,6 +260,9 @@ class WeekService {
       'createdAt': FieldValue.serverTimestamp(),
       'depth': 0, // Top-level comment
       'replyCount': 0,
+      'upvoteCount': 0,
+      'downvoteCount': 0,
+      'score': 0,
     });
 
     // Increment user comment stats
@@ -282,6 +296,9 @@ class WeekService {
       'parentId': parentCommentId,
       'depth': parentDepth + 1, // One level deeper than parent
       'replyCount': 0,
+      'upvoteCount': 0,
+      'downvoteCount': 0,
+      'score': 0,
     });
 
     // Increment parent's reply count

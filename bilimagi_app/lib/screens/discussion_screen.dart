@@ -4,6 +4,7 @@ import '../models/week.dart';
 import '../models/article.dart';
 import '../models/comment_tree.dart';
 import '../services/week_service.dart';
+import '../services/vote_service.dart';
 import '../core/theme.dart';
 import 'profile_screen.dart';
 
@@ -25,6 +26,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
   final _weekService = WeekService();
   final _commentController = TextEditingController();
   bool _sending = false;
+  bool _sortByScore = true; // true = Popüler, false = Yeni
 
   @override
   void dispose() {
@@ -374,8 +376,11 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
 
         final comments = snapshot.data ?? [];
 
-        // Build comment tree
-        final commentTree = CommentTree.buildTree(comments);
+        // Build comment tree with sorting
+        final commentTree = CommentTree.buildTree(
+          comments,
+          sortByScore: _sortByScore,
+        );
         final flattenedComments = CommentTree.flatten(commentTree);
 
         return CustomScrollView(
@@ -383,6 +388,10 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
             // Comments header
             SliverToBoxAdapter(
               child: _buildCommentsHeader(comments.length),
+            ),
+            // Sorting tabs
+            SliverToBoxAdapter(
+              child: _buildSortingTabs(),
             ),
             // Comments list
             if (flattenedComments.isEmpty)
@@ -444,6 +453,68 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSortingTabs() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          _buildSortTab(
+            icon: Icons.local_fire_department,
+            label: 'Popüler',
+            isSelected: _sortByScore,
+            onTap: () => setState(() => _sortByScore = true),
+          ),
+          const SizedBox(width: 12),
+          _buildSortTab(
+            icon: Icons.access_time,
+            label: 'Yeni',
+            isSelected: !_sortByScore,
+            onTap: () => setState(() => _sortByScore = false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSortTab({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppTheme.primaryColor
+              : AppTheme.textTertiary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? Colors.white : AppTheme.textSecondary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? Colors.white : AppTheme.textSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -630,11 +701,19 @@ class _CommentCard extends StatelessWidget {
                     height: 1.4,
                   ),
                 ),
-                // Reply button (only in discussion phase)
-                if (week.phase == WeekPhase.discussion) ...[
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
+                const SizedBox(height: 6),
+                // Vote and reply buttons
+                Row(
+                  children: [
+                    // Upvote/Downvote buttons
+                    _VoteButtons(
+                      weekId: week.id,
+                      articleId: articleId,
+                      comment: comment,
+                    ),
+                    const SizedBox(width: 16),
+                    // Reply button (only in discussion phase)
+                    if (week.phase == WeekPhase.discussion)
                       TextButton.icon(
                         onPressed: onReply,
                         icon: Icon(
@@ -655,19 +734,18 @@ class _CommentCard extends StatelessWidget {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                       ),
-                      if (comment.replyCount > 0) ...[
-                        const SizedBox(width: 12),
-                        Text(
-                          '${comment.replyCount} yanıt',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textTertiary,
-                          ),
+                    if (comment.replyCount > 0) ...[
+                      const SizedBox(width: 12),
+                      Text(
+                        '${comment.replyCount} yanıt',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textTertiary,
                         ),
-                      ],
+                      ),
                     ],
-                  ),
-                ],
+                  ],
+                ),
               ],
             ),
           ),
@@ -708,5 +786,95 @@ class _CommentCard extends StatelessWidget {
     } else {
       return '${time.day}/${time.month}/${time.year}';
     }
+  }
+}
+
+// Vote buttons widget
+class _VoteButtons extends StatelessWidget {
+  final String weekId;
+  final String articleId;
+  final Comment comment;
+
+  const _VoteButtons({
+    required this.weekId,
+    required this.articleId,
+    required this.comment,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final voteService = VoteService();
+
+    return StreamBuilder<VoteType?>(
+      stream: voteService.getUserVote(
+        weekId: weekId,
+        articleId: articleId,
+        commentId: comment.id,
+      ),
+      builder: (context, snapshot) {
+        final userVote = snapshot.data;
+        final hasUpvoted = userVote == VoteType.up;
+        final hasDownvoted = userVote == VoteType.down;
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Upvote button
+            InkWell(
+              onTap: () {
+                voteService.voteComment(
+                  weekId: weekId,
+                  articleId: articleId,
+                  commentId: comment.id,
+                  type: VoteType.up,
+                );
+              },
+              child: Icon(
+                hasUpvoted ? Icons.arrow_upward : Icons.arrow_upward_outlined,
+                size: 20,
+                color: hasUpvoted
+                    ? AppTheme.primaryColor
+                    : AppTheme.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            // Score
+            Text(
+              comment.score.toString(),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: hasUpvoted
+                    ? AppTheme.primaryColor
+                    : hasDownvoted
+                        ? AppTheme.errorColor
+                        : AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            // Downvote button
+            InkWell(
+              onTap: () {
+                voteService.voteComment(
+                  weekId: weekId,
+                  articleId: articleId,
+                  commentId: comment.id,
+                  type: VoteType.down,
+                );
+              },
+              child: Icon(
+                hasDownvoted
+                    ? Icons.arrow_downward
+                    : Icons.arrow_downward_outlined,
+                size: 20,
+                color: hasDownvoted
+                    ? AppTheme.errorColor
+                    : AppTheme.textSecondary,
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

@@ -11,7 +11,10 @@ class CommentTree {
   }) : replies = replies ?? [];
 
   /// Build a tree from a flat list of comments
-  static List<CommentTree> buildTree(List<Comment> comments) {
+  static List<CommentTree> buildTree(
+    List<Comment> comments, {
+    bool sortByScore = false,
+  }) {
     // Create a map for quick lookup
     final Map<String, CommentTree> nodeMap = {};
     final List<CommentTree> roots = [];
@@ -40,27 +43,49 @@ class CommentTree {
       }
     }
 
-    // Sort roots by creation time (newest first)
-    roots.sort((a, b) => b.comment.createdAt.compareTo(a.comment.createdAt));
+    // Sort roots
+    if (sortByScore) {
+      // Sort by score (highest first), then by time
+      roots.sort((a, b) {
+        final scoreDiff = b.comment.score.compareTo(a.comment.score);
+        if (scoreDiff != 0) return scoreDiff;
+        return b.comment.createdAt.compareTo(a.comment.createdAt);
+      });
+    } else {
+      // Sort by creation time (newest first)
+      roots.sort((a, b) => b.comment.createdAt.compareTo(a.comment.createdAt));
+    }
 
     // Sort replies within each node
-    _sortReplies(roots);
+    _sortReplies(roots, sortByScore: sortByScore);
 
     return roots;
   }
 
-  /// Recursively sort replies by creation time
-  static void _sortReplies(List<CommentTree> nodes) {
+  /// Recursively sort replies
+  static void _sortReplies(
+    List<CommentTree> nodes, {
+    bool sortByScore = false,
+  }) {
     for (final node in nodes) {
       if (node.replies.isNotEmpty) {
-        // Sort by oldest first for replies (chronological order)
-        node.replies.sort(
-          (a, b) => a.comment.createdAt.compareTo(b.comment.createdAt),
-        );
-        _sortReplies(node.replies);
+        if (sortByScore) {
+          node.replies.sort((a, b) {
+            final scoreDiff = b.comment.score.compareTo(a.comment.score);
+            if (scoreDiff != 0) return scoreDiff;
+            return a.comment.createdAt.compareTo(b.comment.createdAt);
+          });
+        } else {
+          // Sort by oldest first for replies (chronological order)
+          node.replies.sort(
+            (a, b) => a.comment.createdAt.compareTo(b.comment.createdAt),
+          );
+        }
+        _sortReplies(node.replies, sortByScore: sortByScore);
       }
     }
   }
+
 
   /// Flatten the tree back to a list (for rendering)
   static List<CommentTree> flatten(List<CommentTree> roots) {
