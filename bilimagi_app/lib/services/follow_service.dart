@@ -196,4 +196,39 @@ class FollowService {
       return (data?['stats']?['followingCount'] ?? 0) as int;
     });
   }
+
+  /// v3.0: Get suggested users to follow (users not already followed)
+  Stream<List<UserProfile>> getSuggestedUsers(String currentUid) {
+    // Listen to current user's following list to react to changes
+    return _firestore
+        .collection('users')
+        .doc(currentUid)
+        .collection('following')
+        .snapshots()
+        .asyncMap((followingSnapshot) async {
+      // Get list of users already being followed
+      final followingUids = followingSnapshot.docs.map((doc) => doc.id).toSet();
+      followingUids.add(currentUid); // Don't suggest self
+
+      // Get all users (limit to avoid loading too many)
+      final usersSnapshot = await _firestore
+          .collection('users')
+          .limit(50)
+          .get();
+
+      // Filter out users already followed
+      final suggestions = <UserProfile>[];
+      for (final doc in usersSnapshot.docs) {
+        if (!followingUids.contains(doc.id)) {
+          suggestions.add(UserProfile.fromFirestore(doc));
+        }
+      }
+
+      // Sort by follower count (most popular first), then limit
+      suggestions.sort((a, b) =>
+          b.stats.followersCount.compareTo(a.stats.followersCount));
+
+      return suggestions.take(10).toList();
+    });
+  }
 }

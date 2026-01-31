@@ -2,43 +2,92 @@ import 'package:flutter/material.dart';
 import '../models/week.dart';
 import '../models/article.dart';
 import '../models/community.dart';
+import '../models/user_profile.dart';
 import '../services/week_service.dart';
+import '../services/follow_service.dart';
+import '../services/auth_service.dart';
 import '../core/theme.dart';
 import 'discussion_screen.dart';
 import 'week_screen.dart';
+import 'profile_screen.dart';
 
-class HomeFeedScreen extends StatelessWidget {
+class HomeFeedScreen extends StatefulWidget {
   const HomeFeedScreen({super.key});
+
+  @override
+  State<HomeFeedScreen> createState() => _HomeFeedScreenState();
+}
+
+class _HomeFeedScreenState extends State<HomeFeedScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ana Sayfa'),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: AppTheme.primaryColor,
+          unselectedLabelColor: AppTheme.textSecondary,
+          indicatorColor: AppTheme.primaryColor,
+          tabs: const [
+            Tab(text: 'Keşfet', icon: Icon(Icons.explore, size: 20)),
+            Tab(text: 'Takip', icon: Icon(Icons.people, size: 20)),
+          ],
+        ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          // Active Discussions Section
-          _buildSectionHeader(
-            icon: Icons.forum,
-            title: 'Aktif Tartışmalar',
-            subtitle: 'Şu anda tartışılan makaleler',
-          ),
-          const SizedBox(height: 12),
-          _ActiveDiscussionsSection(),
-          const SizedBox(height: 24),
-
-          // Voting This Week Section
-          _buildSectionHeader(
-            icon: Icons.how_to_vote,
-            title: 'Bu Hafta Oylama',
-            subtitle: 'Oyunu kullan, kazananı belirle',
-          ),
-          const SizedBox(height: 12),
-          _VotingWeeksSection(),
+          _ExploreTab(),
+          _FollowingTab(),
         ],
       ),
+    );
+  }
+}
+
+// ==================== EXPLORE TAB ====================
+
+class _ExploreTab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Active Discussions Section
+        _buildSectionHeader(
+          icon: Icons.forum,
+          title: 'Aktif Tartışmalar',
+          subtitle: 'Şu anda tartışılan makaleler',
+        ),
+        const SizedBox(height: 12),
+        _ActiveDiscussionsSection(),
+        const SizedBox(height: 24),
+
+        // Voting This Week Section
+        _buildSectionHeader(
+          icon: Icons.how_to_vote,
+          title: 'Bu Hafta Oylama',
+          subtitle: 'Oyunu kullan, kazananı belirle',
+        ),
+        const SizedBox(height: 12),
+        _VotingWeeksSection(),
+      ],
     );
   }
 
@@ -52,7 +101,7 @@ class HomeFeedScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withOpacity(0.1),
+            color: AppTheme.primaryColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: AppTheme.primaryColor, size: 24),
@@ -83,6 +132,380 @@ class HomeFeedScreen extends StatelessWidget {
     );
   }
 }
+
+// ==================== FOLLOWING TAB ====================
+
+class _FollowingTab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final authService = AuthService();
+    final currentUid = authService.currentUser?.uid;
+
+    if (currentUid == null) {
+      return _buildEmptyState(
+        icon: Icons.login,
+        title: 'Giriş yapın',
+        message: 'Takip ettiğiniz kişilerin aktivitelerini görmek için giriş yapın',
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Following Activity
+        _buildSectionHeader(
+          icon: Icons.people,
+          title: 'Takip Edilenler',
+          subtitle: 'Takip ettiğiniz kişiler',
+        ),
+        const SizedBox(height: 12),
+        _FollowingListSection(currentUid: currentUid),
+        const SizedBox(height: 24),
+
+        // Suggested Users
+        _buildSectionHeader(
+          icon: Icons.person_add,
+          title: 'Önerilen Kullanıcılar',
+          subtitle: 'Yeni kişiler keşfet',
+        ),
+        const SizedBox(height: 12),
+        _SuggestedUsersSection(currentUid: currentUid),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: AppTheme.primaryColor, size: 24),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 64, color: AppTheme.textTertiary),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: TextStyle(color: AppTheme.textTertiary),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FollowingListSection extends StatelessWidget {
+  final String currentUid;
+
+  const _FollowingListSection({required this.currentUid});
+
+  @override
+  Widget build(BuildContext context) {
+    final followService = FollowService();
+
+    return StreamBuilder<List<UserProfile>>(
+      stream: followService.getFollowing(currentUid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        final following = snapshot.data ?? [];
+
+        if (following.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Icon(Icons.person_search, size: 48, color: AppTheme.textTertiary),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Henüz kimseyi takip etmiyorsunuz',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Topluluklardaki tartışmalara katılın ve ilginç kullanıcıları keşfedin!',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.textTertiary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          children: following.map((user) => _FollowingUserCard(user: user)).toList(),
+        );
+      },
+    );
+  }
+}
+
+class _FollowingUserCard extends StatelessWidget {
+  final UserProfile user;
+
+  const _FollowingUserCard({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarColors = [
+      AppTheme.primaryColor,
+      AppTheme.secondaryColor,
+      const Color(0xFF9B59B6),
+      const Color(0xFF3498DB),
+      const Color(0xFFE74C3C),
+      const Color(0xFF2ECC71),
+      const Color(0xFFF39C12),
+      const Color(0xFF1ABC9C),
+    ];
+
+    final color = avatarColors[user.avatarColorIndex];
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color,
+          child: Text(
+            user.displayName.isNotEmpty
+                ? user.displayName[0].toUpperCase()
+                : '?',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        title: Text(
+          user.displayName,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          '${user.stats.totalComments} yorum · ${user.stats.totalVotes} oy',
+          style: TextStyle(
+            fontSize: 12,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProfileScreen(userId: user.uid),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SuggestedUsersSection extends StatelessWidget {
+  final String currentUid;
+
+  const _SuggestedUsersSection({required this.currentUid});
+
+  @override
+  Widget build(BuildContext context) {
+    final followService = FollowService();
+
+    return StreamBuilder<List<UserProfile>>(
+      stream: followService.getSuggestedUsers(currentUid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        final suggestions = snapshot.data ?? [];
+
+        if (suggestions.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Icon(Icons.check_circle, size: 48, color: AppTheme.textTertiary),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Şimdilik öneri yok',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          children: suggestions.map((user) => _SuggestedUserCard(user: user)).toList(),
+        );
+      },
+    );
+  }
+}
+
+class _SuggestedUserCard extends StatelessWidget {
+  final UserProfile user;
+
+  const _SuggestedUserCard({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final followService = FollowService();
+    final avatarColors = [
+      AppTheme.primaryColor,
+      AppTheme.secondaryColor,
+      const Color(0xFF9B59B6),
+      const Color(0xFF3498DB),
+      const Color(0xFFE74C3C),
+      const Color(0xFF2ECC71),
+      const Color(0xFFF39C12),
+      const Color(0xFF1ABC9C),
+    ];
+
+    final color = avatarColors[user.avatarColorIndex];
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color,
+          child: Text(
+            user.displayName.isNotEmpty
+                ? user.displayName[0].toUpperCase()
+                : '?',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        title: Text(
+          user.displayName,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          user.bio ?? '${user.stats.totalComments} yorum',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 12,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+        trailing: StreamBuilder<bool>(
+          stream: followService.isFollowing(user.uid),
+          builder: (context, snapshot) {
+            final isFollowing = snapshot.data ?? false;
+
+            return TextButton(
+              onPressed: () async {
+                try {
+                  if (isFollowing) {
+                    await followService.unfollowUser(user.uid);
+                  } else {
+                    await followService.followUser(user.uid);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Hata: $e')),
+                    );
+                  }
+                }
+              },
+              child: Text(isFollowing ? 'Takipte' : 'Takip Et'),
+            );
+          },
+        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProfileScreen(userId: user.uid),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ==================== EXISTING SECTIONS ====================
 
 class _ActiveDiscussionsSection extends StatelessWidget {
   @override
@@ -253,7 +676,7 @@ class _DiscussionCard extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: AppTheme.secondaryColor.withOpacity(0.1),
+                      color: AppTheme.secondaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -349,7 +772,7 @@ class _VotingWeekCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
