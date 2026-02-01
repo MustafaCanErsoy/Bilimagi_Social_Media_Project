@@ -5,12 +5,14 @@ import '../models/article.dart';
 import '../models/comment_tree.dart';
 import '../services/week_service.dart';
 import '../services/bookmark_service.dart';
+import '../services/report_service.dart';
 import '../core/theme.dart';
 import '../widgets/article_post_card.dart';
 import '../widgets/comment_card.dart';
 import '../widgets/sort_tabs.dart';
 import '../widgets/discussion_dialogs.dart';
 import '../widgets/mention_autocomplete.dart';
+import '../widgets/report_dialog.dart';
 
 class DiscussionScreen extends StatefulWidget {
   final Week week;
@@ -28,6 +30,7 @@ class DiscussionScreen extends StatefulWidget {
 
 class _DiscussionScreenState extends State<DiscussionScreen> {
   final _weekService = WeekService();
+  final _reportService = ReportService();
   final _commentController = TextEditingController();
   late MentionAutocompleteController _mentionController;
   bool _sending = false;
@@ -49,6 +52,44 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
     _mentionController.dispose();
     _commentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _reportComment(Comment comment) async {
+    final result = await ReportDialog.show(
+      context,
+      title: 'Yorumu Raporla',
+      targetName: comment.displayName,
+    );
+
+    if (result == null || !mounted) return;
+
+    try {
+      await _reportService.reportComment(
+        communityId: widget.week.communityId,
+        weekId: widget.week.id,
+        articleId: widget.article.id,
+        commentId: comment.id,
+        commentUid: comment.uid,
+        commentDisplayName: comment.displayName,
+        reason: result['reason']!,
+        details: result['details'],
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Rapor gönderildi. Teşekkürler!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
+    }
   }
 
   Future<void> _sendComment() async {
@@ -222,6 +263,9 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
                                   articleId: widget.article.id,
                                   weekService: _weekService,
                                 )
+                            : null,
+                        onReport: !isOwnComment
+                            ? () => _reportComment(commentNode.comment)
                             : null,
                       );
                     },

@@ -265,7 +265,7 @@ class _WeekScreenState extends State<WeekScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      color: phaseColor.withOpacity(0.1),
+      color: phaseColor.withValues(alpha:0.1),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

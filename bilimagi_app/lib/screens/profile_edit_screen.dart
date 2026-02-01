@@ -195,7 +195,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
-                                color: _avatarColors[index].withOpacity(0.5),
+                                color: _avatarColors[index].withValues(alpha:0.5),
                                 blurRadius: 8,
                                 spreadRadius: 2,
                               ),
@@ -217,7 +217,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
             // Info text
             Card(
-              color: AppTheme.primaryColor.withOpacity(0.1),
+              color: AppTheme.primaryColor.withValues(alpha:0.1),
               elevation: 0,
               child: Padding(
                 padding: const EdgeInsets.all(12),

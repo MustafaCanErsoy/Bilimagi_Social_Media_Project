@@ -22,6 +22,8 @@ class CommentCard extends StatelessWidget {
   final bool isModerator;
   final VoidCallback? onHide;
   final VoidCallback? onUnhide;
+  // v6.0: Report
+  final VoidCallback? onReport;
 
   const CommentCard({
     super.key,
@@ -35,6 +37,7 @@ class CommentCard extends StatelessWidget {
     this.isModerator = false,
     this.onHide,
     this.onUnhide,
+    this.onReport,
   });
 
   @override
@@ -396,6 +399,18 @@ class CommentCard extends StatelessWidget {
             '${comment.replyCount} yanıt',
             style: TextStyle(
               fontSize: 12,
+              color: AppTheme.getTextTertiary(context),
+            ),
+          ),
+        ],
+        // v6.0: Report button (for non-own comments)
+        if (!isOwnComment && onReport != null) ...[
+          const Spacer(),
+          GestureDetector(
+            onTap: onReport,
+            child: Icon(
+              Icons.flag_outlined,
+              size: 16,
               color: AppTheme.getTextTertiary(context),
             ),
           ),
