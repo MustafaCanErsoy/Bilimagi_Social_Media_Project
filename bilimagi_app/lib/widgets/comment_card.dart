@@ -18,6 +18,10 @@ class CommentCard extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final bool isOwnComment;
+  // v6.0: Moderation
+  final bool isModerator;
+  final VoidCallback? onHide;
+  final VoidCallback? onUnhide;
 
   const CommentCard({
     super.key,
@@ -28,6 +32,9 @@ class CommentCard extends StatelessWidget {
     this.onEdit,
     this.onDelete,
     this.isOwnComment = false,
+    this.isModerator = false,
+    this.onHide,
+    this.onUnhide,
   });
 
   @override
@@ -40,6 +47,11 @@ class CommentCard extends StatelessWidget {
     // v4.0: Show deleted comment placeholder
     if (comment.isDeleted) {
       return _buildDeletedComment(context, depth, maxDepth, leftPadding);
+    }
+
+    // v6.0: Show hidden comment placeholder (unless moderator viewing)
+    if (comment.isHidden && !isModerator) {
+      return _buildHiddenComment(context, depth, maxDepth, leftPadding);
     }
 
     return Padding(
@@ -129,6 +141,48 @@ class CommentCard extends StatelessWidget {
     );
   }
 
+  Widget _buildHiddenComment(
+    BuildContext context,
+    int depth,
+    int maxDepth,
+    double leftPadding,
+  ) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: 16,
+        left: depth > maxDepth ? maxDepth * 20.0 : leftPadding,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: Colors.orange.shade200,
+            child: Icon(Icons.visibility_off, color: Colors.orange.shade800, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '[Bu yorum moderator tarafindan gizlendi]',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.orange.shade700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeader(BuildContext context, Comment comment) {
     return Row(
       children: [
@@ -195,6 +249,55 @@ class CommentCard extends StatelessWidget {
             ),
           ),
         ],
+        // v6.0: Mod actions
+        if (isModerator && !isOwnComment) ...[
+          const SizedBox(width: 8),
+          _buildModMenu(context, comment),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildModMenu(BuildContext context, Comment comment) {
+    return PopupMenuButton<String>(
+      icon: Icon(
+        Icons.shield_outlined,
+        size: 16,
+        color: Colors.orange.shade600,
+      ),
+      padding: EdgeInsets.zero,
+      iconSize: 16,
+      tooltip: 'Moderasyon',
+      onSelected: (value) {
+        if (value == 'hide' && onHide != null) {
+          onHide!();
+        } else if (value == 'unhide' && onUnhide != null) {
+          onUnhide!();
+        }
+      },
+      itemBuilder: (context) => [
+        if (!comment.isHidden && onHide != null)
+          const PopupMenuItem(
+            value: 'hide',
+            child: Row(
+              children: [
+                Icon(Icons.visibility_off, size: 18),
+                SizedBox(width: 8),
+                Text('Yorumu Gizle'),
+              ],
+            ),
+          ),
+        if (comment.isHidden && onUnhide != null)
+          const PopupMenuItem(
+            value: 'unhide',
+            child: Row(
+              children: [
+                Icon(Icons.visibility, size: 18),
+                SizedBox(width: 8),
+                Text('Gizliligi Kaldir'),
+              ],
+            ),
+          ),
       ],
     );
   }

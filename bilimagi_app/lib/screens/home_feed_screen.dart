@@ -4,8 +4,10 @@ import '../models/week.dart';
 import '../models/article.dart';
 import '../models/community.dart';
 import '../models/user_profile.dart';
+import '../models/user_activity.dart';
 import '../services/week_service.dart';
 import '../services/follow_service.dart';
+import '../services/activity_service.dart';
 import '../services/auth_service.dart';
 import '../services/comment_service.dart';
 import '../core/theme.dart';
@@ -13,6 +15,7 @@ import '../core/avatar_colors.dart';
 import '../widgets/section_header.dart';
 import '../widgets/empty_state_card.dart';
 import '../widgets/skeleton_loading.dart';
+import '../widgets/activity_feed_card.dart';
 import 'discussion_screen.dart';
 import 'week_screen.dart';
 import 'profile_screen.dart';
@@ -153,14 +156,14 @@ class _FollowingTabState extends State<_FollowingTab> {
         key: _refreshKey,
         padding: const EdgeInsets.all(16),
         children: [
-          // Following Activity
+          // Activity Feed Section
           const SectionHeader(
-            icon: Icons.people,
-            title: 'Takip Edilenler',
-            subtitle: 'Takip ettiğiniz kişiler',
+            icon: Icons.dynamic_feed,
+            title: 'Aktivite Akışı',
+            subtitle: 'Takip ettiğiniz kişilerin aktiviteleri',
           ),
           const SizedBox(height: 12),
-          _FollowingListSection(currentUid: currentUid),
+          _ActivityFeedSection(currentUid: currentUid),
           const SizedBox(height: 24),
 
           // Suggested Users
@@ -177,17 +180,19 @@ class _FollowingTabState extends State<_FollowingTab> {
   }
 }
 
-class _FollowingListSection extends StatelessWidget {
+// ==================== ACTIVITY FEED SECTION ====================
+
+class _ActivityFeedSection extends StatelessWidget {
   final String currentUid;
 
-  const _FollowingListSection({required this.currentUid});
+  const _ActivityFeedSection({required this.currentUid});
 
   @override
   Widget build(BuildContext context) {
-    final followService = FollowService();
+    final activityService = ActivityService();
 
-    return StreamBuilder<List<UserProfile>>(
-      stream: followService.getFollowing(currentUid),
+    return StreamBuilder<List<UserActivity>>(
+      stream: activityService.getFollowedUsersActivities(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Column(
@@ -198,70 +203,72 @@ class _FollowingListSection extends StatelessWidget {
           );
         }
 
-        final following = snapshot.data ?? [];
+        final activities = snapshot.data ?? [];
 
-        if (following.isEmpty) {
+        if (activities.isEmpty) {
           return const EmptyStateCard(
-            icon: Icons.person_search,
-            message: 'Henüz kimseyi takip etmiyorsunuz',
-            submessage: 'Topluluklardaki tartışmalara katılın ve ilginç kullanıcıları keşfedin!',
+            icon: Icons.feed_outlined,
+            message: 'Henüz aktivite yok',
+            submessage: 'Takip ettiğiniz kullanıcıların aktiviteleri burada görünecek',
           );
         }
 
         return Column(
-          children: following.map((user) => _FollowingUserCard(user: user)).toList(),
+          children: activities.map((activity) {
+            return ActivityFeedCard(
+              activity: activity,
+              onTap: () => _navigateToTarget(context, activity),
+              onUserTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ProfileScreen(userId: activity.uid),
+                  ),
+                );
+              },
+            );
+          }).toList(),
         );
       },
     );
   }
-}
 
-class _FollowingUserCard extends StatelessWidget {
-  final UserProfile user;
-
-  const _FollowingUserCard({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = avatarColors[user.avatarColorIndex];
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color,
-          child: Text(
-            user.displayName.isNotEmpty
-                ? user.displayName[0].toUpperCase()
-                : '?',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        title: Text(
-          user.displayName,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
-          '${user.stats.totalComments} yorum · ${user.stats.totalVotes} oy',
-          style: TextStyle(
-            fontSize: 12,
-            color: AppTheme.textSecondary,
-          ),
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () {
+  void _navigateToTarget(BuildContext context, UserActivity activity) async {
+    switch (activity.type) {
+      case ActivityType.comment:
+      case ActivityType.vote:
+      case ActivityType.suggestion:
+        // Navigate to discussion or week screen
+        if (activity.weekId != null && activity.targetId.isNotEmpty) {
+          final weekService = WeekService();
+          final week = await weekService.getWeekOnce(activity.weekId!);
+          final article = await weekService.getArticleOnce(activity.weekId!, activity.targetId);
+          if (week != null && article != null && context.mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DiscussionScreen(
+                  week: week,
+                  article: article,
+                ),
+              ),
+            );
+          }
+        }
+        break;
+      case ActivityType.join:
+        // Navigate to community (week screen)
+        if (activity.communityId != null && context.mounted) {
+          // For now, navigate to profile - community navigation would need community object
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => ProfileScreen(userId: user.uid),
+              builder: (context) => ProfileScreen(userId: activity.uid),
             ),
           );
-        },
-      ),
-    );
+        }
+        break;
+    }
   }
 }
 

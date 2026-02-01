@@ -114,22 +114,26 @@ class CommunityService {
 
   // ==================== COMMUNITY QUERIES ====================
 
-  /// Get single community (stream)
+  /// Get single community (stream) - returns null if deleted
   Stream<Community?> getCommunity(String communityId) {
     return _db.collection('communities').doc(communityId).snapshots().map((doc) {
       if (!doc.exists) return null;
-      return Community.fromFirestore(doc);
+      final community = Community.fromFirestore(doc);
+      if (community.isDeleted) return null;
+      return community;
     });
   }
 
-  /// Get single community once
+  /// Get single community once - returns null if deleted
   Future<Community?> getCommunityOnce(String communityId) async {
     final doc = await _db.collection('communities').doc(communityId).get();
     if (!doc.exists) return null;
-    return Community.fromFirestore(doc);
+    final community = Community.fromFirestore(doc);
+    if (community.isDeleted) return null;
+    return community;
   }
 
-  /// Get all public communities
+  /// Get all public communities (excludes deleted)
   Stream<List<Community>> getPublicCommunities() {
     return _db
         .collection('communities')
@@ -137,11 +141,11 @@ class CommunityService {
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => Community.fromFirestore(doc))
-            .where((c) => c.isPublic)
+            .where((c) => c.isPublic && !c.isDeleted)
             .toList());
   }
 
-  /// Get communities where user is a member
+  /// Get communities where user is a member (excludes deleted)
   Stream<List<Community>> getUserCommunities(String uid) {
     return _db
         .collectionGroup('members')
@@ -155,12 +159,67 @@ class CommunityService {
         if (communityId != null) {
           final communityDoc = await _db.collection('communities').doc(communityId).get();
           if (communityDoc.exists) {
-            communities.add(Community.fromFirestore(communityDoc));
+            final community = Community.fromFirestore(communityDoc);
+            // Filter out deleted communities
+            if (!community.isDeleted) {
+              communities.add(community);
+            }
           }
         }
       }
       return communities;
     });
+  }
+
+  // ==================== SEARCH & FILTER ====================
+
+  /// Sort options for communities
+  static const String sortByPopular = 'popular';
+  static const String sortByNewest = 'newest';
+  static const String sortByName = 'name';
+
+  /// Filter and sort communities (client-side)
+  List<Community> filterCommunities({
+    required List<Community> communities,
+    String? searchQuery,
+    String? category,
+    String sortBy = sortByPopular,
+  }) {
+    var filtered = communities.toList();
+
+    // Apply search filter
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      final query = searchQuery.toLowerCase();
+      filtered = filtered.where((c) {
+        return c.name.toLowerCase().contains(query) ||
+            c.description.toLowerCase().contains(query) ||
+            c.displayCategory.toLowerCase().contains(query);
+      }).toList();
+    }
+
+    // Apply category filter
+    if (category != null && category.isNotEmpty) {
+      filtered = filtered.where((c) => c.category == category).toList();
+    }
+
+    // Apply sorting
+    switch (sortBy) {
+      case sortByPopular:
+        filtered.sort((a, b) => b.stats.memberCount.compareTo(a.stats.memberCount));
+        break;
+      case sortByNewest:
+        filtered.sort((a, b) {
+          final aDate = a.createdAt ?? DateTime(2000);
+          final bDate = b.createdAt ?? DateTime(2000);
+          return bDate.compareTo(aDate);
+        });
+        break;
+      case sortByName:
+        filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        break;
+    }
+
+    return filtered;
   }
 
   // ==================== MEMBERSHIP OPERATIONS ====================
@@ -317,6 +376,16 @@ class CommunityService {
     }
 
     await batch.commit();
+
+    // Notify the removed user
+    final community = await getCommunityOnce(communityId);
+    if (community != null) {
+      await _notificationService.createMemberRemovedNotification(
+        targetUid: targetUid,
+        communityId: communityId,
+        communityName: community.name,
+      );
+    }
   }
 
   /// Set member role (owner only)
@@ -339,6 +408,17 @@ class CommunityService {
     await _db.collection('communities').doc(communityId).collection('members').doc(targetUid).update({
       'role': newRole.name,
     });
+
+    // Notify the user about role change
+    final community = await getCommunityOnce(communityId);
+    if (community != null) {
+      await _notificationService.createRoleChangedNotification(
+        targetUid: targetUid,
+        communityId: communityId,
+        communityName: community.name,
+        newRole: newRole.name,
+      );
+    }
   }
 
   // ==================== MEMBERSHIP QUERIES ====================

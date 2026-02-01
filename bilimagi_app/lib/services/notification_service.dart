@@ -12,6 +12,9 @@ enum NotificationType {
   membershipRejected,  // Your membership was rejected
   suggestionApproved,  // Your article suggestion was approved
   suggestionRejected,  // Your article suggestion was rejected
+  // v6.0 new types
+  roleChanged,         // Your role was changed (e.g., promoted to moderator)
+  memberRemoved,       // You were removed from a community
 }
 
 class AppNotification {
@@ -100,6 +103,10 @@ class AppNotification {
         return 'Makale öneriniz onaylandı: ${preview ?? ''}';
       case NotificationType.suggestionRejected:
         return 'Makale öneriniz reddedildi: ${preview ?? ''}';
+      case NotificationType.roleChanged:
+        return '${communityName ?? 'Topluluk'} rolünüz değiştirildi: ${preview ?? ''}';
+      case NotificationType.memberRemoved:
+        return '${communityName ?? 'Topluluk'} üyeliğiniz sonlandırıldı';
     }
   }
 
@@ -123,6 +130,10 @@ class AppNotification {
         return 'article';
       case NotificationType.suggestionRejected:
         return 'article';
+      case NotificationType.roleChanged:
+        return 'admin_panel_settings';
+      case NotificationType.memberRemoved:
+        return 'person_remove';
     }
   }
 }
@@ -448,6 +459,64 @@ class NotificationService {
           fromDisplayName: 'Sistem',
           weekId: weekId,
           preview: suggestionTitle,
+          createdAt: DateTime.now(),
+        ).toFirestore());
+  }
+
+  // ==================== v6.0 ROLE & REMOVAL NOTIFICATIONS ====================
+
+  /// Create a role changed notification (e.g., promoted to moderator)
+  Future<void> createRoleChangedNotification({
+    required String targetUid,
+    required String communityId,
+    required String communityName,
+    required String newRole,
+  }) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+
+    final roleLabels = {
+      'owner': 'Sahip',
+      'moderator': 'Moderatör',
+      'member': 'Üye',
+    };
+
+    await _firestore
+        .collection('users')
+        .doc(targetUid)
+        .collection('notifications')
+        .add(AppNotification(
+          id: '',
+          type: NotificationType.roleChanged,
+          fromUid: uid,
+          fromDisplayName: communityName,
+          communityId: communityId,
+          communityName: communityName,
+          preview: roleLabels[newRole] ?? newRole,
+          createdAt: DateTime.now(),
+        ).toFirestore());
+  }
+
+  /// Create a member removed notification
+  Future<void> createMemberRemovedNotification({
+    required String targetUid,
+    required String communityId,
+    required String communityName,
+  }) async {
+    final uid = _currentUid;
+    if (uid == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(targetUid)
+        .collection('notifications')
+        .add(AppNotification(
+          id: '',
+          type: NotificationType.memberRemoved,
+          fromUid: uid,
+          fromDisplayName: communityName,
+          communityId: communityId,
+          communityName: communityName,
           createdAt: DateTime.now(),
         ).toFirestore());
   }

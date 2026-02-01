@@ -87,6 +87,9 @@ class Community {
   final bool isPublic;
   final CommunityStats stats;
 
+  // v6.0: Soft delete
+  final bool isDeleted;
+
   Community({
     required this.id,
     required this.name,
@@ -100,6 +103,7 @@ class Community {
     this.createdAt,
     this.isPublic = true,
     this.stats = const CommunityStats(),
+    this.isDeleted = false,
   });
 
   /// Get display category (uses customCategory if category is "other")
@@ -125,6 +129,7 @@ class Community {
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       isPublic: data['isPublic'] ?? true,
       stats: CommunityStats.fromMap(data['stats']),
+      isDeleted: data['isDeleted'] ?? false,
     );
   }
 

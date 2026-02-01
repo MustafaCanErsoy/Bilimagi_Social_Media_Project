@@ -4,6 +4,119 @@ All notable changes to Bilimagi will be documented in this file.
 
 ---
 
+## [v6.0] - 2026-02-01
+
+### Added - Search, Activity Feed & Moderation System
+
+**Topluluk Arama & Filtreleme:**
+- Arama çubuğu (debounced input, topluluk adı/açıklama/kategori'de arama)
+- Filtre bottom sheet (kategori + sıralama tek yerde)
+- Aktif filtre göstergesi ve temizleme butonu
+- Client-side filtreleme (Firestore okuma sonrası)
+
+**Takip Edilen Aktivite Akışı:**
+- Yeni `UserActivity` modeli (comment, vote, join, suggestion türleri)
+- `ActivityService` - takip edilenlerin aktivitelerini aggregation
+- `ActivityFeedCard` widget - aktivite gösterimi
+- Ana sayfa "Takip" sekmesi aktivite akışı ile yeniden tasarlandı
+
+**Gelişmiş Moderasyon:**
+- Yorum gizleme sistemi (isHidden, hiddenByUid, hiddenAt, hiddenReason alanları)
+- Kullanıcı banlama sistemi (kalıcı ban, sebep zorunlu)
+- Audit log (moderasyon işlem geçmişi kaydı)
+- Moderasyon paneli ekranı (Yasaklılar + İşlem Geçmişi tab'ları)
+- Yorum kartında moderatör menüsü (gizle/göster)
+
+**Yeni Bildirimler:**
+- `roleChanged` - Rol değişikliği bildirimi (moderatör yapılma vb.)
+- `memberRemoved` - Topluluktan çıkarılma bildirimi
+
+**Topluluk Yönetimi İyileştirmeleri:**
+- Topluluk silme UI (onay dialogu ile, isim yazma zorunluluğu)
+- `isDeleted` alanı ile soft delete
+- Silinen topluluklar tüm listelerden filtreleniyor
+
+**Yeni Dosyalar:**
+
+*Models:*
+- `lib/models/user_activity.dart` - ActivityType enum + UserActivity model
+- `lib/models/community_ban.dart` - CommunityBan model
+- `lib/models/moderation_log.dart` - ModerationActionType enum + ModerationLog model
+
+*Services:*
+- `lib/services/activity_service.dart` - recordActivity, getFollowedUsersActivities
+- `lib/services/moderation_service.dart` - hideComment, banUser, getModerationLogs
+
+*Widgets:*
+- `lib/widgets/community_search_bar.dart` - Debounced arama input
+- `lib/widgets/category_filter_chips.dart` - FilterChip'ler + sort dropdown
+- `lib/widgets/activity_feed_card.dart` - Aktivite gösterim kartı
+
+*Screens:*
+- `lib/screens/moderation_dashboard_screen.dart` - Ban listesi + audit log
+
+### Changed
+
+**Güncellenen Modeller:**
+- `lib/models/comment.dart` - +isHidden, +hiddenByUid, +hiddenAt, +hiddenReason
+- `lib/models/community.dart` - +isDeleted alanı
+
+**Güncellenen Servisler:**
+- `lib/services/community_service.dart` - +filterCommunities(), +isDeleted filtreleme, +bildirimler
+- `lib/services/notification_service.dart` - +roleChanged, +memberRemoved bildirimleri
+- `lib/services/week_service.dart` - +isDeleted filtreleme
+
+**Güncellenen Widgetlar:**
+- `lib/widgets/comment_card.dart` - +isModerator, +onHide, +onUnhide, mod menu
+
+**Güncellenen Ekranlar:**
+- `lib/screens/community_select_screen.dart` - Filtre bottom sheet UI
+- `lib/screens/home_feed_screen.dart` - Aktivite akışı entegrasyonu
+- `lib/screens/community_manage_screen.dart` - Moderasyon paneli + silme butonu
+- `lib/screens/activity_screen.dart` - Yeni bildirim türleri desteği
+
+### Firestore Schema Changes
+
+**comments/{commentId} (UPDATED):**
+- `+isHidden: boolean`
+- `+hiddenByUid: string?`
+- `+hiddenAt: timestamp?`
+- `+hiddenReason: string?`
+
+**communities/{communityId}/bans/{bannedUid} (NEW):**
+- `bannedDisplayName: string`
+- `bannedByUid: string`
+- `bannedByDisplayName: string`
+- `bannedAt: timestamp`
+- `expiresAt: timestamp?` (null = kalıcı)
+- `reason: string`
+
+**communities/{communityId}/moderationLogs/{logId} (NEW):**
+- `type: "hideComment" | "unhideComment" | "banUser" | "unbanUser" | ...`
+- `moderatorUid: string`
+- `moderatorDisplayName: string`
+- `targetUid: string?`
+- `targetDisplayName: string?`
+- `targetId: string?`
+- `reason: string?`
+- `createdAt: timestamp`
+
+**users/{uid}/activities/{activityId} (NEW):**
+- `uid: string`
+- `displayName: string`
+- `avatarColorIndex: number`
+- `type: "comment" | "vote" | "join" | "suggestion"`
+- `targetType: "article" | "community" | "user"`
+- `targetId: string`
+- `targetName: string?`
+- `weekId: string?`
+- `communityId: string?`
+- `communityName: string?`
+- `preview: string?`
+- `createdAt: timestamp`
+
+---
+
 ## [v5.0] - 2026-02-01
 
 ### Added - Community Creation & Article Suggestion System

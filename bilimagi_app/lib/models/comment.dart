@@ -25,6 +25,12 @@ class Comment {
   // v4.0: Delete field (soft delete)
   final bool isDeleted;
 
+  // v6.0: Moderation fields
+  final bool isHidden;
+  final String? hiddenByUid;
+  final DateTime? hiddenAt;
+  final String? hiddenReason;
+
   Comment({
     required this.id,
     required this.uid,
@@ -40,6 +46,10 @@ class Comment {
     this.isEdited = false,
     this.editedAt,
     this.isDeleted = false,
+    this.isHidden = false,
+    this.hiddenByUid,
+    this.hiddenAt,
+    this.hiddenReason,
   });
 
   factory Comment.fromFirestore(DocumentSnapshot doc) {
@@ -59,6 +69,10 @@ class Comment {
       isEdited: data['isEdited'] ?? false,
       editedAt: (data['editedAt'] as Timestamp?)?.toDate(),
       isDeleted: data['isDeleted'] ?? false,
+      isHidden: data['isHidden'] ?? false,
+      hiddenByUid: data['hiddenByUid'],
+      hiddenAt: (data['hiddenAt'] as Timestamp?)?.toDate(),
+      hiddenReason: data['hiddenReason'],
     );
   }
 
@@ -77,6 +91,10 @@ class Comment {
       'isEdited': isEdited,
       'editedAt': editedAt != null ? Timestamp.fromDate(editedAt!) : null,
       'isDeleted': isDeleted,
+      'isHidden': isHidden,
+      'hiddenByUid': hiddenByUid,
+      'hiddenAt': hiddenAt != null ? Timestamp.fromDate(hiddenAt!) : null,
+      'hiddenReason': hiddenReason,
     };
   }
 }

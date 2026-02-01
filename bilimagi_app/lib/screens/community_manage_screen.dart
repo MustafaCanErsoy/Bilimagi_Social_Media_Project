@@ -5,6 +5,7 @@ import '../core/avatar_colors.dart';
 import '../services/community_service.dart';
 import '../widgets/community_icon_picker.dart';
 import 'community_members_screen.dart';
+import 'moderation_dashboard_screen.dart';
 
 /// Screen for managing community settings (owner/moderator only)
 class CommunityManageScreen extends StatefulWidget {
@@ -341,6 +342,29 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
                   },
                 ),
               ),
+              const SizedBox(height: 8),
+
+              // v6.0: Moderation dashboard
+              Card(
+                child: ListTile(
+                  leading: Icon(Icons.shield, color: Colors.orange.shade600),
+                  title: const Text('Moderasyon Paneli'),
+                  subtitle: const Text('Yasaklılar ve işlem geçmişi'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    if (_community != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ModerationDashboardScreen(
+                            community: _community!,
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
               const SizedBox(height: 16),
 
               // Create new week button
@@ -355,11 +379,71 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
                   ),
                 ),
               ),
+
+              // Delete community (owner only)
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              Text(
+                'Tehlikeli Bölge',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: Colors.red.shade700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _deleteCommunity,
+                  icon: const Icon(Icons.delete_forever),
+                  label: const Text('Topluluğu Sil'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _deleteCommunity() async {
+    // Show confirmation dialog with text input
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => _DeleteCommunityDialog(
+        communityName: _community!.name,
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _communityService.deleteCommunity(widget.communityId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Topluluk silindi')),
+        );
+        // Go back to community list
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Widget _buildStatItem(IconData icon, String value, String label) {
@@ -376,6 +460,99 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
         Text(
           label,
           style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+/// Dialog for confirming community deletion
+class _DeleteCommunityDialog extends StatefulWidget {
+  final String communityName;
+
+  const _DeleteCommunityDialog({required this.communityName});
+
+  @override
+  State<_DeleteCommunityDialog> createState() => _DeleteCommunityDialogState();
+}
+
+class _DeleteCommunityDialogState extends State<_DeleteCommunityDialog> {
+  final _controller = TextEditingController();
+  bool _canDelete = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() {
+      setState(() {
+        _canDelete = _controller.text == widget.communityName;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.warning, color: Colors.red.shade700),
+          const SizedBox(width: 8),
+          const Text('Topluluğu Sil'),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Bu işlem geri alınamaz! Topluluk ve tüm içeriği (haftalar, makaleler, yorumlar) kalıcı olarak silinecek.',
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Onaylamak için topluluk adını yazın:',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Colors.red.shade700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.communityName,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            decoration: InputDecoration(
+              hintText: 'Topluluk adını yazın',
+              border: const OutlineInputBorder(),
+              errorText: _controller.text.isNotEmpty && !_canDelete
+                  ? 'Topluluk adı eşleşmiyor'
+                  : null,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('İptal'),
+        ),
+        FilledButton(
+          onPressed: _canDelete ? () => Navigator.pop(context, true) : null,
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.red,
+          ),
+          child: const Text('Kalıcı Olarak Sil'),
         ),
       ],
     );

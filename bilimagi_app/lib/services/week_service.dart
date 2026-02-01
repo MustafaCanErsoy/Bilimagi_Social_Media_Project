@@ -232,11 +232,12 @@ class WeekService {
       for (final weekDoc in weeksSnapshot.docs) {
         final week = Week.fromFirestore(weekDoc);
 
-        // Get community
+        // Get community (skip deleted)
         final communityDoc =
             await _db.collection('communities').doc(week.communityId).get();
         if (!communityDoc.exists) continue;
         final community = Community.fromFirestore(communityDoc);
+        if (community.isDeleted) continue;
 
         // Get winning article
         final article = await getWinningArticle(week.id);
@@ -273,11 +274,12 @@ class WeekService {
       for (final weekDoc in weeksSnapshot.docs) {
         final week = Week.fromFirestore(weekDoc);
 
-        // Get community
+        // Get community (skip deleted)
         final communityDoc =
             await _db.collection('communities').doc(week.communityId).get();
         if (!communityDoc.exists) continue;
         final community = Community.fromFirestore(communityDoc);
+        if (community.isDeleted) continue;
 
         results.add({
           'week': week,

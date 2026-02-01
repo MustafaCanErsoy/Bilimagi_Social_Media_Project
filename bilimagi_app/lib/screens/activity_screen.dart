@@ -293,6 +293,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
       case NotificationType.membershipRejected:
       case NotificationType.suggestionApproved:
       case NotificationType.suggestionRejected:
+      case NotificationType.roleChanged:
+      case NotificationType.memberRemoved:
         // TODO: Navigate to community or week when deep linking is supported
         break;
     }
@@ -420,6 +422,10 @@ class _NotificationTile extends StatelessWidget {
       case NotificationType.suggestionApproved:
       case NotificationType.suggestionRejected:
         return Icons.article;
+      case NotificationType.roleChanged:
+        return Icons.admin_panel_settings;
+      case NotificationType.memberRemoved:
+        return Icons.person_remove;
     }
   }
 
@@ -443,6 +449,10 @@ class _NotificationTile extends StatelessWidget {
         return AppTheme.secondaryColor;
       case NotificationType.suggestionRejected:
         return AppTheme.errorColor;
+      case NotificationType.roleChanged:
+        return Colors.purple;
+      case NotificationType.memberRemoved:
+        return Colors.red.shade700;
     }
   }
 
