@@ -4,6 +4,68 @@ All notable changes to Bilimagi will be documented in this file.
 
 ---
 
+## [v7.1] - 2026-02-01
+
+### Added - Login & Geçiş Animasyonları
+
+**Login Ekranı Yeniden Tasarım:**
+- Full gradient arka plan (splashGradient)
+- Animasyonlu logo (fade in + scale)
+- Form animasyonu (slide up + fade in)
+- Glassmorphism tarzı floating input alanları
+- Beyaz buton gradient üzerinde kontrast
+- Kayıt ekranına geçiş animasyonu
+
+**Hoş Geldin Ekranı (Welcome Screen):**
+- Giriş sonrası karşılama ekranı
+- Logo animasyonu (fade in + scale)
+- Kişiselleştirilmiş "Hoş geldin, [İsim]!" mesajı
+- Otomatik geçiş animasyonu (2.5 saniye)
+- Pulsing dots loading indicator
+
+**Hoşça Kal Ekranı (Goodbye Screen):**
+- Çıkış öncesi veda ekranı
+- "Hoşça kal, [İsim]!" mesajı
+- "Tekrar görüşmek üzere!" alt mesajı
+- El sallama ikonu
+- Animasyonlu geçiş ve otomatik logout
+
+**Logo Güncelleme:**
+- "Bilimagi" → "BİLİMAĞI" (tümü büyük harf, Türkçe karakterler)
+- Yeni ikon: DNA sarmalı (biotech) - gradient arka plan
+- Font size artırıldı, letter spacing eklendi
+- Slogan: "Bilimsel Tartışma"
+
+**Yeni Dosyalar:**
+- `lib/screens/welcome_screen.dart` - Hoş geldin ekranı (~220 satır)
+- `lib/screens/goodbye_screen.dart` - Hoşça kal ekranı (~210 satır)
+
+### Changed
+
+**Güncellenen Ekranlar:**
+- `lib/screens/login_screen.dart` - Tam yeniden tasarım (~310 satır)
+- `lib/screens/register_screen.dart` - Aynı stil uygulaması (~340 satır)
+- `lib/screens/settings_screen.dart` - Türkçe karakterler, goodbye entegrasyonu
+
+**Güncellenen Widgetlar:**
+- `lib/widgets/app_logo.dart` - Yeni logo tasarımı (BİLİMAĞI, biotech ikonu)
+
+**Güncellenen Core:**
+- `lib/main.dart` - Welcome flow entegrasyonu, route tanımları
+
+### Fixed
+
+**Türkçe Karakter Düzeltmeleri (settings_screen.dart):**
+- "Gorunum" → "Görünüm"
+- "Cikis Yap" → "Çıkış Yap"
+- "Acik Tema" → "Açık Tema"
+- "Sistem Ayari" → "Sistem Ayarı"
+- "Iptal" → "İptal"
+- "Hesabinizdan..." → "Hesabınızdan..."
+- Versiyon: v3.0 → v7.1
+
+---
+
 ## [v6.1] - 2026-02-01
 
 ### Added - Comment Reporting & Code Quality

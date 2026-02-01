@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/theme.dart';
 import '../core/theme_provider.dart';
 import '../services/auth_service.dart';
+import 'goodbye_screen.dart';
 
 /// v4.0: Settings screen for user preferences
 class SettingsScreen extends StatelessWidget {
@@ -20,7 +22,7 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         children: [
           // Theme Section
-          _buildSectionHeader(context, 'Gorunum'),
+          _buildSectionHeader(context, 'Görünüm'),
           _buildThemeSelector(context, themeProvider),
 
           const SizedBox(height: 24),
@@ -44,7 +46,7 @@ class SettingsScreen extends StatelessWidget {
               onPressed: () => _showLogoutDialog(context, authService),
               icon: const Icon(Icons.logout, color: Colors.red),
               label: const Text(
-                'Cikis Yap',
+                'Çıkış Yap',
                 style: TextStyle(color: Colors.red),
               ),
               style: OutlinedButton.styleFrom(
@@ -83,7 +85,7 @@ class SettingsScreen extends StatelessWidget {
             context,
             themeProvider,
             ThemeMode.light,
-            'Acik Tema',
+            'Açık Tema',
             Icons.light_mode,
           ),
           const Divider(height: 1),
@@ -99,7 +101,7 @@ class SettingsScreen extends StatelessWidget {
             context,
             themeProvider,
             ThemeMode.system,
-            'Sistem Ayari',
+            'Sistem Ayarı',
             Icons.brightness_auto,
           ),
         ],
@@ -166,7 +168,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             title: const Text('Versiyon'),
             trailing: Text(
-              'v3.0',
+              'v7.1',
               style: TextStyle(color: AppTheme.getTextSecondary(context)),
             ),
           ),
@@ -192,32 +194,46 @@ class SettingsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Cikis Yap'),
-        content: const Text('Hesabinizdan cikis yapmak istediginize emin misiniz?'),
+        title: const Text('Çıkış Yap'),
+        content: const Text('Hesabınızdan çıkış yapmak istediğinize emin misiniz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Iptal'),
+            child: const Text('İptal'),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
-              try {
-                await authService.signOut();
-                // Navigate to root and let AuthWrapper handle the rest
-                if (context.mounted) {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
+              // Get user display name before logout
+              final user = authService.currentUser;
+              String displayName = 'Kullanıcı';
+
+              if (user != null) {
+                try {
+                  final doc = await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user.uid)
+                      .get();
+                  displayName = doc.data()?['displayName'] ??
+                      user.displayName ??
+                      'Kullanıcı';
+                } catch (e) {
+                  displayName = user.displayName ?? 'Kullanıcı';
                 }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Cikis yapilamadi: $e')),
-                  );
-                }
+              }
+
+              // Navigate to goodbye screen
+              if (context.mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => GoodbyeScreen(displayName: displayName),
+                  ),
+                  (route) => false,
+                );
               }
             },
             child: const Text(
-              'Cikis Yap',
+              'Çıkış Yap',
               style: TextStyle(color: Colors.red),
             ),
           ),

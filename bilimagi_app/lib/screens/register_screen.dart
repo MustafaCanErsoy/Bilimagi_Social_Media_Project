@@ -3,23 +3,25 @@ import '../services/auth_service.dart';
 import '../core/app_colors.dart';
 import '../core/app_typography.dart';
 import '../widgets/app_logo.dart';
-import 'register_screen.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
+class _RegisterScreenState extends State<RegisterScreen>
     with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   String? _error;
 
   // Animation controllers
@@ -39,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen>
   void _setupAnimations() {
     // Logo animation
     _logoController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 600),
       vsync: this,
     );
 
@@ -50,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen>
       ),
     );
 
-    _logoScaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _logoScaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
       CurvedAnimation(
         parent: _logoController,
         curve: Curves.easeOutBack,
@@ -59,12 +61,12 @@ class _LoginScreenState extends State<LoginScreen>
 
     // Form animation
     _formController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
 
     _formSlideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
+      begin: const Offset(0, 0.2),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
@@ -86,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen>
     });
   }
 
-  Future<void> _login() async {
+  Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -95,15 +97,25 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      await _authService.signIn(
+      await _authService.signUp(
         _emailController.text.trim(),
         _passwordController.text,
+        _nameController.text.trim(),
       );
-      // Navigation handled by auth state listener in main.dart
+      if (mounted) {
+        // Show success message and navigate back
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Hoş geldin, ${_nameController.text.trim()}!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        Navigator.of(context).pop();
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'Giriş başarısız. E-posta ve şifreyi kontrol edin.';
+          _error = _getErrorMessage(e.toString());
         });
       }
     } finally {
@@ -115,37 +127,27 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  void _navigateToRegister() {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const RegisterScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.3, 0),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-              )),
-              child: child,
-            ),
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 300),
-      ),
-    );
+  String _getErrorMessage(String error) {
+    if (error.contains('email-already-in-use')) {
+      return 'Bu e-posta adresi zaten kullanılıyor';
+    }
+    if (error.contains('weak-password')) {
+      return 'Şifre çok zayıf. En az 6 karakter kullanın';
+    }
+    if (error.contains('invalid-email')) {
+      return 'Geçersiz e-posta adresi';
+    }
+    return 'Kayıt başarısız. Lütfen tekrar deneyin';
   }
 
   @override
   void dispose() {
     _logoController.dispose();
     _formController.dispose();
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -159,55 +161,104 @@ class _LoginScreenState extends State<LoginScreen>
           gradient: AppColors.splashGradient,
         ),
         child: SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  const SizedBox(height: 60),
-                  // Animated Logo
-                  AnimatedBuilder(
-                    animation: _logoController,
-                    builder: (context, child) {
-                      return Opacity(
-                        opacity: _logoFadeAnimation.value,
-                        child: Transform.scale(
-                          scale: _logoScaleAnimation.value,
-                          child: const AppLogo(
-                            variant: LogoVariant.full,
-                            showSlogan: true,
-                            isDark: true,
-                            size: 1.2,
+          child: Column(
+            children: [
+              // Custom App Bar
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      'Kayıt Ol',
+                      style: AppTypography.h3.copyWith(
+                        color: Colors.white,
+                      ),
+                    ),
+                    const Spacer(),
+                    const SizedBox(width: 48), // Balance the back button
+                  ],
+                ),
+              ),
+              // Content
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 16),
+                        // Animated Logo
+                        AnimatedBuilder(
+                          animation: _logoController,
+                          builder: (context, child) {
+                            return Opacity(
+                              opacity: _logoFadeAnimation.value,
+                              child: Transform.scale(
+                                scale: _logoScaleAnimation.value,
+                                child: const AppLogo(
+                                  variant: LogoVariant.compact,
+                                  isDark: true,
+                                  size: 1.0,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 32),
+                        // Animated Form
+                        SlideTransition(
+                          position: _formSlideAnimation,
+                          child: FadeTransition(
+                            opacity: _formFadeAnimation,
+                            child: _buildRegisterForm(),
                           ),
                         ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 48),
-                  // Animated Form
-                  SlideTransition(
-                    position: _formSlideAnimation,
-                    child: FadeTransition(
-                      opacity: _formFadeAnimation,
-                      child: _buildLoginForm(),
+                        const SizedBox(height: 32),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 32),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildLoginForm() {
+  Widget _buildRegisterForm() {
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Name Field
+          _buildFloatingTextField(
+            controller: _nameController,
+            hintText: 'Kullanıcı Adı',
+            icon: Icons.person_outlined,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Kullanıcı adı gerekli';
+              }
+              if (value.length < 2) {
+                return 'Kullanıcı adı en az 2 karakter olmalı';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
           // Email Field
           _buildFloatingTextField(
             controller: _emailController,
@@ -219,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen>
               if (value == null || value.isEmpty) {
                 return 'E-posta gerekli';
               }
-              if (!value.contains('@')) {
+              if (!value.contains('@') || !value.contains('.')) {
                 return 'Geçerli bir e-posta girin';
               }
               return null;
@@ -232,8 +283,7 @@ class _LoginScreenState extends State<LoginScreen>
             hintText: 'Şifre',
             icon: Icons.lock_outlined,
             obscureText: _obscurePassword,
-            textInputAction: TextInputAction.done,
-            onFieldSubmitted: (_) => _login(),
+            textInputAction: TextInputAction.next,
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword
@@ -250,6 +300,41 @@ class _LoginScreenState extends State<LoginScreen>
             validator: (value) {
               if (value == null || value.isEmpty) {
                 return 'Şifre gerekli';
+              }
+              if (value.length < 6) {
+                return 'Şifre en az 6 karakter olmalı';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          // Confirm Password Field
+          _buildFloatingTextField(
+            controller: _confirmPasswordController,
+            hintText: 'Şifre Tekrar',
+            icon: Icons.lock_outlined,
+            obscureText: _obscureConfirmPassword,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _register(),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureConfirmPassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                color: Colors.white70,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscureConfirmPassword = !_obscureConfirmPassword;
+                });
+              },
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Şifre tekrarı gerekli';
+              }
+              if (value != _passwordController.text) {
+                return 'Şifreler eşleşmiyor';
               }
               return null;
             },
@@ -287,11 +372,11 @@ class _LoginScreenState extends State<LoginScreen>
             ),
             const SizedBox(height: 16),
           ],
-          // Login Button
+          // Register Button
           SizedBox(
             height: 56,
             child: ElevatedButton(
-              onPressed: _isLoading ? null : _login,
+              onPressed: _isLoading ? null : _register,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: AppColors.primary,
@@ -311,7 +396,7 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     )
                   : Text(
-                      'Giriş Yap',
+                      'Kayıt Ol',
                       style: AppTypography.button.copyWith(
                         color: AppColors.primary,
                         fontSize: 16,
@@ -320,23 +405,23 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
           const SizedBox(height: 24),
-          // Register Link
+          // Login Link
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Hesabın yok mu?',
+                'Zaten hesabın var mı?',
                 style: AppTypography.body.copyWith(
                   color: Colors.white70,
                 ),
               ),
               TextButton(
-                onPressed: _navigateToRegister,
+                onPressed: () => Navigator.of(context).pop(),
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.white,
                 ),
                 child: Text(
-                  'Kayıt Ol',
+                  'Giriş Yap',
                   style: AppTypography.button.copyWith(
                     color: Colors.white,
                     decoration: TextDecoration.underline,
@@ -357,6 +442,7 @@ class _LoginScreenState extends State<LoginScreen>
     required IconData icon,
     TextInputType? keyboardType,
     TextInputAction? textInputAction,
+    TextCapitalization textCapitalization = TextCapitalization.none,
     bool obscureText = false,
     Widget? suffixIcon,
     String? Function(String?)? validator,
@@ -374,6 +460,7 @@ class _LoginScreenState extends State<LoginScreen>
         controller: controller,
         keyboardType: keyboardType,
         textInputAction: textInputAction,
+        textCapitalization: textCapitalization,
         obscureText: obscureText,
         onFieldSubmitted: onFieldSubmitted,
         style: AppTypography.body.copyWith(color: Colors.white),
