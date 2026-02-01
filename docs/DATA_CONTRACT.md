@@ -1,6 +1,6 @@
 # Bilimagi Data Contract
 
-**Version:** v5.0
+**Version:** v6.0
 **Last Updated:** 2026-02-01
 
 Bu dosya Firestore veritabanı şemasını ve veri akışlarını detaylı şekilde açıklar.
@@ -15,16 +15,19 @@ firestore/
 │   ├── following/{targetUid}/
 │   ├── followers/{followerUid}/
 │   ├── notifications/{notificationId}/
-│   └── savedArticles/{articleId}/
+│   ├── savedArticles/{articleId}/
+│   └── activities/{activityId}/              [v6.0]
 ├── communities/{communityId}/
-│   └── members/{uid}/
+│   ├── members/{uid}/
+│   ├── bans/{bannedUid}/                     [v6.0]
+│   └── moderationLogs/{logId}/               [v6.0]
 └── weeks/{weekId}/
     ├── articles/{articleId}/
     │   ├── votes/{uid}/
     │   └── comments/{commentId}/
     │       └── votes/{uid}/
-    └── suggestions/{suggestionId}/        [v5.0]
-        └── interests/{uid}/               [v5.0]
+    └── suggestions/{suggestionId}/           [v5.0]
+        └── interests/{uid}/                  [v5.0]
 ```
 
 ---
@@ -41,6 +44,7 @@ Kullanıcı profil bilgileri.
 | `photoURL` | string? | Profil fotoğrafı URL'i |
 | `bio` | string? | Kullanıcı biyografisi |
 | `role` | string | "admin" \| "member" |
+| `avatarColorIndex` | number? | Avatar renk indeksi (0-9) |
 | `createdAt` | timestamp | Hesap oluşturma tarihi |
 | `stats` | map | İstatistikler (aşağıda) |
 
@@ -87,21 +91,24 @@ Kullanıcı bildirimleri.
 | `weekId` | string? | İlgili hafta ID'si |
 | `articleId` | string? | İlgili makale ID'si |
 | `preview` | string? | Önizleme metni |
-| `communityId` | string? | İlgili topluluk ID'si (v5.0) |
-| `communityName` | string? | Topluluk adı (v5.0) |
+| `communityId` | string? | İlgili topluluk ID'si |
+| `communityName` | string? | Topluluk adı |
+| `newRole` | string? | Yeni rol (roleChanged için) [v6.0] |
 
 **Bildirim Türleri (type):**
-| Değer | Açıklama |
-|-------|----------|
-| `follow` | Birisi seni takip etti |
-| `mention` | Birisi senden bahsetti |
-| `reply` | Birisi yorumuna yanıt verdi |
-| `upvote` | Birisi yorumunu beğendi |
-| `membershipRequest` | Birisi topluluğuna katılmak istiyor (v5.0) |
-| `membershipApproved` | Üyelik başvurun onaylandı (v5.0) |
-| `membershipRejected` | Üyelik başvurun reddedildi (v5.0) |
-| `suggestionApproved` | Makale önerin onaylandı (v5.0) |
-| `suggestionRejected` | Makale önerin reddedildi (v5.0) |
+| Değer | Açıklama | Versiyon |
+|-------|----------|----------|
+| `follow` | Birisi seni takip etti | v1.0 |
+| `mention` | Birisi senden bahsetti | v3.0 |
+| `reply` | Birisi yorumuna yanıt verdi | v3.0 |
+| `upvote` | Birisi yorumunu beğendi | v3.0 |
+| `membershipRequest` | Birisi topluluğuna katılmak istiyor | v5.0 |
+| `membershipApproved` | Üyelik başvurun onaylandı | v5.0 |
+| `membershipRejected` | Üyelik başvurun reddedildi | v5.0 |
+| `suggestionApproved` | Makale önerin onaylandı | v5.0 |
+| `suggestionRejected` | Makale önerin reddedildi | v5.0 |
+| `roleChanged` | Topluluktaki rolün değişti | v6.0 |
+| `memberRemoved` | Topluluktan çıkarıldın | v6.0 |
 
 ---
 
@@ -117,6 +124,41 @@ Kaydedilen makaleler (denormalize).
 
 ---
 
+### users/{uid}/activities/{activityId} [v6.0]
+Kullanıcı aktiviteleri (takip akışı için).
+
+| Alan | Tip | Açıklama |
+|------|-----|----------|
+| `uid` | string | Kullanıcı ID'si |
+| `displayName` | string | Görünen isim |
+| `avatarColorIndex` | number | Avatar renk indeksi |
+| `type` | string | Aktivite türü (aşağıda) |
+| `targetType` | string | Hedef türü (aşağıda) |
+| `targetId` | string | Hedef ID'si |
+| `targetName` | string? | Hedef adı |
+| `weekId` | string? | İlgili hafta ID'si |
+| `communityId` | string? | İlgili topluluk ID'si |
+| `communityName` | string? | Topluluk adı |
+| `preview` | string? | Önizleme metni |
+| `createdAt` | timestamp | Aktivite zamanı |
+
+**Aktivite Türleri (type):**
+| Değer | Açıklama |
+|-------|----------|
+| `comment` | Yorum yaptı |
+| `vote` | Oy verdi |
+| `join` | Topluluğa katıldı |
+| `suggestion` | Makale önerdi |
+
+**Hedef Türleri (targetType):**
+| Değer | Açıklama |
+|-------|----------|
+| `article` | Makale |
+| `community` | Topluluk |
+| `user` | Kullanıcı |
+
+---
+
 ## 2. Communities Koleksiyonu
 
 ### communities/{communityId}
@@ -128,13 +170,14 @@ Topluluk bilgileri.
 | `description` | string | Açıklama |
 | `ownerUid` | string | Sahip kullanıcı ID'si |
 | `currentWeekId` | string? | Aktif hafta ID'si |
-| `category` | string | Kategori kodu (v5.0) |
-| `customCategory` | string? | Özel kategori adı (v5.0) |
-| `iconEmoji` | string? | Simge emoji (v5.0) |
-| `colorIndex` | number | Renk indeksi 0-7 (v5.0) |
-| `createdAt` | timestamp | Oluşturulma tarihi (v5.0) |
-| `isPublic` | boolean | Herkese açık mı? (v5.0) |
-| `stats` | map | İstatistikler (v5.0) |
+| `category` | string | Kategori kodu |
+| `customCategory` | string? | Özel kategori adı |
+| `iconEmoji` | string? | Simge emoji |
+| `colorIndex` | number | Renk indeksi 0-7 |
+| `createdAt` | timestamp | Oluşturulma tarihi |
+| `isPublic` | boolean | Herkese açık mı? |
+| `isDeleted` | boolean | Silindi mi? (soft delete) [v6.0] |
+| `stats` | map | İstatistikler |
 
 **category değerleri:**
 | Kod | Türkçe |
@@ -148,6 +191,18 @@ Topluluk bilgileri.
 | `psychology` | Psikoloji |
 | `other` | Diğer (customCategory kullanılır) |
 
+**colorIndex değerleri:**
+| İndeks | Renk |
+|--------|------|
+| 0 | Mavi (#2196F3) |
+| 1 | Yeşil (#4CAF50) |
+| 2 | Turuncu (#FF9800) |
+| 3 | Mor (#9C27B0) |
+| 4 | Kırmızı (#F44336) |
+| 5 | Turkuaz (#00BCD4) |
+| 6 | Pembe (#E91E63) |
+| 7 | Kahverengi (#795548) |
+
 **stats alt alanları:**
 | Alan | Tip | Açıklama |
 |------|-----|----------|
@@ -157,7 +212,7 @@ Topluluk bilgileri.
 
 ---
 
-### communities/{communityId}/members/{uid} [v5.0]
+### communities/{communityId}/members/{uid}
 Topluluk üyeleri.
 
 | Alan | Tip | Açıklama |
@@ -174,8 +229,54 @@ Topluluk üyeleri.
 | Rol | Yetkiler |
 |-----|----------|
 | `owner` | Tüm yetkiler, topluluğu silme, moderatör atama |
-| `moderator` | Öneri onaylama, üye kabul/red, üye çıkarma |
+| `moderator` | Öneri onaylama, üye kabul/red, üye çıkarma, yorum gizleme, kullanıcı banlama |
 | `member` | Oylama, yorum yapma, makale önerme |
+
+---
+
+### communities/{communityId}/bans/{bannedUid} [v6.0]
+Yasaklı kullanıcılar.
+
+| Alan | Tip | Açıklama |
+|------|-----|----------|
+| `bannedUid` | string | Yasaklanan kullanıcı ID'si |
+| `bannedDisplayName` | string | Yasaklanan kullanıcı adı |
+| `bannedByUid` | string | Yasaklayan moderatör ID'si |
+| `bannedByDisplayName` | string | Yasaklayan moderatör adı |
+| `bannedAt` | timestamp | Yasaklanma tarihi |
+| `expiresAt` | timestamp? | Yasak bitiş tarihi (null = kalıcı) |
+| `reason` | string | Yasaklanma sebebi |
+
+---
+
+### communities/{communityId}/moderationLogs/{logId} [v6.0]
+Moderasyon işlem geçmişi (audit log).
+
+| Alan | Tip | Açıklama |
+|------|-----|----------|
+| `type` | string | İşlem türü (aşağıda) |
+| `moderatorUid` | string | İşlemi yapan moderatör ID'si |
+| `moderatorDisplayName` | string | Moderatör adı |
+| `targetUid` | string? | Hedef kullanıcı ID'si |
+| `targetDisplayName` | string? | Hedef kullanıcı adı |
+| `targetId` | string? | Hedef içerik ID'si (yorum vb.) |
+| `reason` | string? | İşlem sebebi |
+| `details` | string? | Ek detaylar |
+| `createdAt` | timestamp | İşlem zamanı |
+
+**Moderasyon İşlem Türleri (type):**
+| Değer | Açıklama |
+|-------|----------|
+| `hideComment` | Yorum gizlendi |
+| `unhideComment` | Yorum görünür yapıldı |
+| `banUser` | Kullanıcı yasaklandı |
+| `unbanUser` | Kullanıcı yasağı kaldırıldı |
+| `changeRole` | Kullanıcı rolü değiştirildi |
+| `removeMember` | Kullanıcı topluluktan çıkarıldı |
+| `approveMember` | Üyelik onaylandı |
+| `rejectMember` | Üyelik reddedildi |
+| `approveSuggestion` | Öneri onaylandı |
+| `rejectSuggestion` | Öneri reddedildi |
 
 ---
 
@@ -207,9 +308,9 @@ Haftalık makaleler.
 | `title` | string | Makale başlığı |
 | `summary` | string | Özet |
 | `link` | string | Makale URL'i |
-| `suggestedByUid` | string? | Öneren kullanıcı (v5.0) |
-| `suggestedByDisplayName` | string? | Öneren ismi (v5.0) |
-| `suggestionId` | string? | Kaynak öneri ID'si (v5.0) |
+| `suggestedByUid` | string? | Öneren kullanıcı |
+| `suggestedByDisplayName` | string? | Öneren ismi |
+| `suggestionId` | string? | Kaynak öneri ID'si |
 | `createdAt` | timestamp? | Oluşturulma tarihi |
 
 ---
@@ -243,6 +344,10 @@ Makale yorumları.
 | `isEdited` | boolean? | Düzenlendi mi? |
 | `editedAt` | timestamp? | Düzenleme zamanı |
 | `isDeleted` | boolean? | Silindi mi? (soft delete) |
+| `isHidden` | boolean? | Moderatör tarafından gizlendi mi? [v6.0] |
+| `hiddenByUid` | string? | Gizleyen moderatör ID'si [v6.0] |
+| `hiddenAt` | timestamp? | Gizlenme zamanı [v6.0] |
+| `hiddenReason` | string? | Gizleme sebebi [v6.0] |
 
 **@mention formatı:**
 ```
@@ -261,7 +366,7 @@ Yorum oyları.
 
 ---
 
-### weeks/{weekId}/suggestions/{suggestionId} [v5.0]
+### weeks/{weekId}/suggestions/{suggestionId}
 Makale önerileri.
 
 | Alan | Tip | Açıklama |
@@ -280,7 +385,7 @@ Makale önerileri.
 
 ---
 
-### weeks/{weekId}/suggestions/{suggestionId}/interests/{uid} [v5.0]
+### weeks/{weekId}/suggestions/{suggestionId}/interests/{uid}
 Öneri ilgi oyları.
 
 | Alan | Tip | Açıklama |
@@ -309,18 +414,59 @@ collection('communities/{id}/members')
 collection('weeks')
   .where('phase', isEqualTo: 'discussion')
   .limit(20)
+// + client-side: community.isDeleted == false filtresi
 ```
 
 ### Oylama Fazındaki Haftalar
 ```dart
 collection('weeks')
   .where('phase', isEqualTo: 'voting')
+// + client-side: community.isDeleted == false filtresi
 ```
 
 ### Bekleyen Öneriler
 ```dart
 collection('weeks/{weekId}/suggestions')
   .where('status', isEqualTo: 'pending')
+```
+
+### Public Topluluklar (Silinmemiş) [v6.0]
+```dart
+collection('communities')
+  .where('isPublic', isEqualTo: true)
+// + client-side: isDeleted == false filtresi
+```
+
+### Topluluk Arama (Client-side) [v6.0]
+```dart
+// Tüm public topluluklar alınır, sonra filtrelenir:
+communities.where((c) =>
+  c.name.toLowerCase().contains(query) ||
+  c.description.toLowerCase().contains(query) ||
+  c.category.contains(query)
+)
+```
+
+### Yasaklı Kullanıcılar [v6.0]
+```dart
+collection('communities/{id}/bans')
+  .orderBy('bannedAt', descending: true)
+```
+
+### Moderasyon Logları [v6.0]
+```dart
+collection('communities/{id}/moderationLogs')
+  .orderBy('createdAt', descending: true)
+  .limit(50)
+```
+
+### Takip Edilen Aktiviteler [v6.0]
+```dart
+// Her takip edilen için:
+collection('users/{followedUid}/activities')
+  .orderBy('createdAt', descending: true)
+  .limit(10)
+// Sonra client-side merge ve sıralama
 ```
 
 ---
@@ -334,11 +480,18 @@ match /users/{userId} {
   allow write: if request.auth.uid == userId;
 }
 
+// Aktiviteler
+match /users/{userId}/activities/{activityId} {
+  allow read: if request.auth != null;
+  allow write: if request.auth.uid == userId;
+}
+
 // Topluluklar
 match /communities/{communityId} {
   allow read: if resource.data.isPublic == true;
   allow create: if request.auth != null;
   allow update: if isOwnerOrMod(communityId);
+  allow delete: if isOwner(communityId);
 }
 
 // Üyelikler
@@ -346,6 +499,19 @@ match /communities/{communityId}/members/{uid} {
   allow read: if request.auth != null;
   allow create: if request.auth.uid == uid; // Kendi başvurusu
   allow update: if isOwnerOrMod(communityId);
+  allow delete: if isOwnerOrMod(communityId);
+}
+
+// Banlar [v6.0]
+match /communities/{communityId}/bans/{bannedUid} {
+  allow read: if request.auth != null;
+  allow write: if isOwnerOrMod(communityId);
+}
+
+// Moderasyon Logları [v6.0]
+match /communities/{communityId}/moderationLogs/{logId} {
+  allow read: if isOwnerOrMod(communityId);
+  allow create: if isOwnerOrMod(communityId);
 }
 
 // Öneriler
@@ -353,6 +519,13 @@ match /weeks/{weekId}/suggestions/{suggestionId} {
   allow read: if request.auth != null;
   allow create: if isMember(weekId);
   allow update: if isOwnerOrMod(weekId);
+}
+
+// Yorumlar (gizleme için) [v6.0]
+match /weeks/{weekId}/articles/{articleId}/comments/{commentId} {
+  allow read: if request.auth != null;
+  allow create: if request.auth != null;
+  allow update: if request.auth.uid == resource.data.uid || isOwnerOrMod(weekId);
 }
 ```
 
@@ -388,6 +561,29 @@ Kullanıcı                    Sistem                     Owner/Mod
  | <-- Bildirim --------------- |                           |
 ```
 
+### Yorum Gizleme Akışı [v6.0]
+```
+Moderatör                    Sistem                     Kullanıcı
+    |                          |                           |
+    |-- Yorumu gizle --------> |                           |
+    |                          |-- isHidden = true         |
+    |                          |-- hiddenByUid = mod       |
+    |                          |-- Audit log kaydet        |
+    |                          |                           |
+    |                          |-- [Yorum gizli görünür] ->|
+```
+
+### Kullanıcı Banlama Akışı [v6.0]
+```
+Moderatör                    Sistem                     Kullanıcı
+    |                          |                           |
+    |-- Kullanıcıyı banla ---> |                           |
+    |                          |-- Ban kaydı oluştur       |
+    |                          |-- Üyelikten çıkar         |
+    |                          |-- Audit log kaydet        |
+    |                          |-- Bildirim gönder ------->|
+```
+
 ---
 
 ## Index Gereksinimleri
@@ -398,7 +594,107 @@ Firestore composite index gerektiren sorgular:
 |------------|---------|----------|
 | `members` (collectionGroup) | `uid`, `status` | - |
 | `suggestions` | `status`, `interestScore` | DESC |
+| `activities` | `uid`, `createdAt` | DESC |
+| `moderationLogs` | `communityId`, `createdAt` | DESC |
+| `bans` | `communityId`, `bannedAt` | DESC |
 
 ---
 
-**Son Güncelleme:** 2026-02-01 (v5.0)
+## Enum Değerleri Özeti
+
+### NotificationType
+```dart
+enum NotificationType {
+  follow,            // v1.0
+  mention,           // v3.0
+  reply,             // v3.0
+  upvote,            // v3.0
+  membershipRequest, // v5.0
+  membershipApproved,// v5.0
+  membershipRejected,// v5.0
+  suggestionApproved,// v5.0
+  suggestionRejected,// v5.0
+  roleChanged,       // v6.0
+  memberRemoved,     // v6.0
+}
+```
+
+### MemberRole
+```dart
+enum MemberRole {
+  owner,
+  moderator,
+  member,
+}
+```
+
+### MemberStatus
+```dart
+enum MemberStatus {
+  pending,
+  approved,
+  rejected,
+}
+```
+
+### WeekPhase
+```dart
+enum WeekPhase {
+  voting,
+  discussion,
+  closed,
+}
+```
+
+### SuggestionStatus
+```dart
+enum SuggestionStatus {
+  pending,
+  approved,
+  rejected,
+}
+```
+
+### ActivityType [v6.0]
+```dart
+enum ActivityType {
+  comment,
+  vote,
+  join,
+  suggestion,
+}
+```
+
+### ModerationActionType [v6.0]
+```dart
+enum ModerationActionType {
+  hideComment,
+  unhideComment,
+  banUser,
+  unbanUser,
+  changeRole,
+  removeMember,
+  approveMember,
+  rejectMember,
+  approveSuggestion,
+  rejectSuggestion,
+}
+```
+
+### CommunityCategory
+```dart
+class CommunityCategory {
+  static const physics = 'physics';
+  static const biology = 'biology';
+  static const chemistry = 'chemistry';
+  static const mathematics = 'mathematics';
+  static const medicine = 'medicine';
+  static const engineering = 'engineering';
+  static const psychology = 'psychology';
+  static const other = 'other';
+}
+```
+
+---
+
+**Son Güncelleme:** 2026-02-01 (v6.0)
