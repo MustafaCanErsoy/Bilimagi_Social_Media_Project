@@ -4,6 +4,73 @@ All notable changes to Bilimagi will be documented in this file.
 
 ---
 
+## [v6.1] - 2026-02-01
+
+### Added - Comment Reporting & Code Quality
+
+**Yorum Rapor Sistemi:**
+- Kullanıcılar uygunsuz yorumları raporlayabiliyor
+- 5 rapor sebebi: Spam, Taciz, Uygunsuz İçerik, Yanlış Bilgi, Diğer
+- Rapor dialogu ile sebep seçimi ve ek detay girişi
+- Yorum kartında bayrak ikonu (rapor butonu)
+- Aynı yorumu tekrar raporlama engeli
+
+**Moderasyon Paneli Genişletmesi:**
+- Yeni "Raporlar" sekmesi (ilk tab olarak)
+- Bekleyen raporlar listesi
+- Rapor inceleme: "Reddet" veya "Gizle/Yasakla" aksiyonları
+- Yorum gizleme + rapor kapatma tek tıkla
+- Kullanıcı banlama + rapor kapatma tek tıkla
+
+**Yeni Dosyalar:**
+
+*Models:*
+- `lib/models/report.dart` - ReportType, ReportStatus, ReportReason + Report model
+
+*Services:*
+- `lib/services/report_service.dart` - reportComment, getPendingReports, reviewReport
+
+*Widgets:*
+- `lib/widgets/report_dialog.dart` - Rapor sebep seçimi dialogu
+
+### Changed
+
+**Güncellenen Widgetlar:**
+- `lib/widgets/comment_card.dart` - +onReport callback, bayrak ikonu
+
+**Güncellenen Ekranlar:**
+- `lib/screens/discussion_screen.dart` - Rapor entegrasyonu
+- `lib/screens/moderation_dashboard_screen.dart` - Raporlar sekmesi (3 tab)
+
+### Fixed
+
+**Kod Kalitesi:**
+- `withOpacity()` deprecation uyarıları düzeltildi (11 yer)
+- `lib/core/theme.dart` - 8 düzeltme
+- `lib/screens/profile_edit_screen.dart` - 2 düzeltme
+- `lib/screens/week_screen.dart` - 1 düzeltme
+
+### Firestore Schema Changes
+
+**communities/{communityId}/reports/{reportId} (NEW):**
+- `reporterUid: string`
+- `reporterDisplayName: string`
+- `type: "comment" | "user"`
+- `targetId: string`
+- `targetUid: string`
+- `targetDisplayName: string?`
+- `weekId: string?`
+- `articleId: string?`
+- `reason: "spam" | "harassment" | "inappropriate" | "misinformation" | "other"`
+- `details: string?`
+- `status: "pending" | "reviewed" | "dismissed"`
+- `createdAt: timestamp`
+- `reviewedByUid: string?`
+- `reviewedAt: timestamp?`
+- `reviewNote: string?`
+
+---
+
 ## [v6.0] - 2026-02-01
 
 ### Added - Search, Activity Feed & Moderation System

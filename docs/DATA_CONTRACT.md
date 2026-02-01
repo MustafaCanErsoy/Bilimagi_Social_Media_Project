@@ -1,6 +1,6 @@
 # Bilimagi Data Contract
 
-**Version:** v6.0
+**Version:** v6.1
 **Last Updated:** 2026-02-01
 
 Bu dosya Firestore veritabanı şemasını ve veri akışlarını detaylı şekilde açıklar.
@@ -20,7 +20,8 @@ firestore/
 ├── communities/{communityId}/
 │   ├── members/{uid}/
 │   ├── bans/{bannedUid}/                     [v6.0]
-│   └── moderationLogs/{logId}/               [v6.0]
+│   ├── moderationLogs/{logId}/               [v6.0]
+│   └── reports/{reportId}/                   [v6.1]
 └── weeks/{weekId}/
     ├── articles/{articleId}/
     │   ├── votes/{uid}/
@@ -280,6 +281,38 @@ Moderasyon işlem geçmişi (audit log).
 
 ---
 
+### communities/{communityId}/reports/{reportId} [v6.1]
+Kullanıcı raporları.
+
+| Alan | Tip | Açıklama |
+|------|-----|----------|
+| `reporterUid` | string | Raporlayan kullanıcı ID'si |
+| `reporterDisplayName` | string | Raporlayan kullanıcı adı |
+| `type` | string | "comment" \| "user" |
+| `targetId` | string | Hedef ID'si (commentId veya uid) |
+| `targetUid` | string | Hedef kullanıcı ID'si |
+| `targetDisplayName` | string? | Hedef kullanıcı adı |
+| `weekId` | string? | İlgili hafta ID'si |
+| `articleId` | string? | İlgili makale ID'si |
+| `reason` | string | Rapor sebebi (aşağıda) |
+| `details` | string? | Ek detaylar |
+| `status` | string | "pending" \| "reviewed" \| "dismissed" |
+| `createdAt` | timestamp | Rapor zamanı |
+| `reviewedByUid` | string? | İnceleyen moderatör |
+| `reviewedAt` | timestamp? | İnceleme zamanı |
+| `reviewNote` | string? | İnceleme notu |
+
+**Rapor Sebepleri (reason):**
+| Değer | Türkçe |
+|-------|--------|
+| `spam` | Spam |
+| `harassment` | Taciz / Zorbalık |
+| `inappropriate` | Uygunsuz İçerik |
+| `misinformation` | Yanlış Bilgi |
+| `other` | Diğer |
+
+---
+
 ## 3. Weeks Koleksiyonu
 
 ### weeks/{weekId}
@@ -514,6 +547,13 @@ match /communities/{communityId}/moderationLogs/{logId} {
   allow create: if isOwnerOrMod(communityId);
 }
 
+// Raporlar [v6.1]
+match /communities/{communityId}/reports/{reportId} {
+  allow read: if isOwnerOrMod(communityId);
+  allow create: if request.auth != null;
+  allow update: if isOwnerOrMod(communityId);
+}
+
 // Öneriler
 match /weeks/{weekId}/suggestions/{suggestionId} {
   allow read: if request.auth != null;
@@ -678,6 +718,34 @@ enum ModerationActionType {
   rejectMember,
   approveSuggestion,
   rejectSuggestion,
+}
+```
+
+### ReportType [v6.1]
+```dart
+enum ReportType {
+  comment,
+  user,
+}
+```
+
+### ReportStatus [v6.1]
+```dart
+enum ReportStatus {
+  pending,
+  reviewed,
+  dismissed,
+}
+```
+
+### ReportReason [v6.1]
+```dart
+class ReportReason {
+  static const spam = 'spam';
+  static const harassment = 'harassment';
+  static const inappropriate = 'inappropriate';
+  static const misinformation = 'misinformation';
+  static const other = 'other';
 }
 ```
 
