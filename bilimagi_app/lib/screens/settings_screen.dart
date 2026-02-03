@@ -5,6 +5,7 @@ import '../core/theme.dart';
 import '../core/theme_provider.dart';
 import '../services/auth_service.dart';
 import 'goodbye_screen.dart';
+import 'about_screen.dart';
 
 /// v4.0: Settings screen for user preferences
 class SettingsScreen extends StatelessWidget {
@@ -168,7 +169,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             title: const Text('Versiyon'),
             trailing: Text(
-              'v7.1',
+              'v7.2',
               style: TextStyle(color: AppTheme.getTextSecondary(context)),
             ),
           ),
@@ -184,6 +185,31 @@ class SettingsScreen extends StatelessWidget {
               color: AppTheme.secondaryColor,
               size: 20,
             ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: Icon(
+              Icons.article_outlined,
+              color: AppTheme.primaryColor,
+            ),
+            title: const Text('Hakkında'),
+            subtitle: Text(
+              'Uygulama bilgileri ve ozellikler',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.getTextTertiary(context),
+              ),
+            ),
+            trailing: Icon(
+              Icons.chevron_right,
+              color: AppTheme.getTextTertiary(context),
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AboutScreen()),
+              );
+            },
           ),
         ],
       ),

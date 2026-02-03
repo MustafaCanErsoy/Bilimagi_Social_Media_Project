@@ -4,6 +4,74 @@ All notable changes to Bilimagi will be documented in this file.
 
 ---
 
+## [v7.2] - 2026-02-01
+
+### Added - Profil Gelistirmeleri
+
+**Profil Fotografı Yukleme:**
+- Firebase Storage entegrasyonu
+- Kamera veya galeriden fotograf secimi
+- Otomatik boyutlandirma (512x512, 85% kalite)
+- Fotograf kaldirma ozelligi
+- Storage path: `users/{uid}/profile_photo.jpg`
+
+**Ilgi Alanlari Sistemi:**
+- 15 bilimsel ilgi alani kategorisi (Fizik, Biyoloji, Kimya, Matematik, Tip, Muhendislik, Psikoloji, Astronomi, Ekoloji, Bilgisayar Bilimi, Noroloji, Genetik, Iklim Bilimi, Yapay Zeka, Kuantum Fizigi)
+- Multi-select FilterChip UI (maksimum 5 secim)
+- Profilde ilgi alanlari gosterimi (ikonlu chip'ler)
+- Turkce etiketler
+
+**Kullanici Aktivitesi:**
+- Son aktiviteler karti (bildirimler bazli)
+- Aktivite turune gore renkli ikonlar
+- Relatif zaman damgalari
+
+**Profil Ekrani Yeniden Tasarim:**
+- CustomScrollView + SliverAppBar layout
+- Animasyonlu header (fade + scale)
+- Staggered icerik animasyonlari (slide + fade)
+- Modern gradient header tasarimi
+- Modular widget yapisi
+
+**Yeni Dosyalar:**
+
+*Core:*
+- `lib/core/interest_categories.dart` - Ilgi alani kategorileri ve Turkce etiketler
+
+*Services:*
+- `lib/services/storage_service.dart` - Firebase Storage profil fotografı islemleri
+
+*Widgets:*
+- `lib/widgets/profile_header.dart` - Animasyonlu gradient header, fotograf/avatar, takipci sayilari
+- `lib/widgets/interest_tag_picker.dart` - Multi-select ilgi alani secici
+- `lib/widgets/interest_tags_display.dart` - Ilgi alani chip'leri gosterimi
+- `lib/widgets/profile_activity_card.dart` - Son aktiviteler karti
+
+### Changed
+
+**Guncellenen Modeller:**
+- `lib/models/user_profile.dart` - +interests: List<String>
+
+**Guncellenen Servisler:**
+- `lib/services/profile_service.dart` - +updateProfilePhoto(), +removeProfilePhoto(), +updateInterests(), +getUserProfileOnce()
+
+**Guncellenen Ekranlar:**
+- `lib/screens/profile_screen.dart` - Tam yeniden tasarim (StatefulWidget, animasyonlar, modular yapı)
+- `lib/screens/profile_edit_screen.dart` - +Fotograf yukleme bolumu, +Ilgi alanlari secici
+
+**Guncellenen Bagimliliklar:**
+- `pubspec.yaml` - +firebase_storage: ^13.0.6, +image_picker: ^1.1.2
+
+### Firestore Schema Changes
+
+**users/{uid} (UPDATED):**
+- `+interests: string[]` - Kullanici ilgi alanlari ['physics', 'biology', ...]
+
+**Firebase Storage (NEW):**
+- `users/{uid}/profile_photo.jpg` - Profil fotografı
+
+---
+
 ## [v7.1] - 2026-02-01
 
 ### Added - Login & Geçiş Animasyonları

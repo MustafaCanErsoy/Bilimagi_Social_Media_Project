@@ -1,6 +1,6 @@
 # Bilimagi Data Contract
 
-**Version:** v6.1
+**Version:** v7.2
 **Last Updated:** 2026-02-01
 
 Bu dosya Firestore veritabanı şemasını ve veri akışlarını detaylı şekilde açıklar.
@@ -46,6 +46,7 @@ Kullanıcı profil bilgileri.
 | `bio` | string? | Kullanıcı biyografisi |
 | `role` | string | "admin" \| "member" |
 | `avatarColorIndex` | number? | Avatar renk indeksi (0-9) |
+| `interests` | string[] | Ilgi alanlari ['physics', 'biology', ...] [v7.2] |
 | `createdAt` | timestamp | Hesap oluşturma tarihi |
 | `stats` | map | İstatistikler (aşağıda) |
 
@@ -763,6 +764,49 @@ class CommunityCategory {
 }
 ```
 
+### InterestCategory [v7.2]
+```dart
+class InterestCategory {
+  static const labels = {
+    'physics': 'Fizik',
+    'biology': 'Biyoloji',
+    'chemistry': 'Kimya',
+    'mathematics': 'Matematik',
+    'medicine': 'Tip',
+    'engineering': 'Muhendislik',
+    'psychology': 'Psikoloji',
+    'astronomy': 'Astronomi',
+    'ecology': 'Ekoloji',
+    'computer_science': 'Bilgisayar Bilimi',
+    'neuroscience': 'Noroloji',
+    'genetics': 'Genetik',
+    'climate': 'Iklim Bilimi',
+    'artificial_intelligence': 'Yapay Zeka',
+    'quantum': 'Kuantum Fizigi',
+  };
+  static const maxSelection = 5;
+}
+```
+
 ---
 
-**Son Güncelleme:** 2026-02-01 (v6.0)
+## Firebase Storage [v7.2]
+
+### Profil Fotograflari
+**Path:** `users/{uid}/profile_photo.jpg`
+
+| Metadata | Deger |
+|----------|-------|
+| contentType | image/jpeg |
+| maxWidth | 512px |
+| maxHeight | 512px |
+| quality | 85% |
+
+**Islemler:**
+- `uploadProfilePhoto(Uint8List bytes)` - Fotograf yukle, URL dondur
+- `deleteProfilePhoto()` - Fotografı sil
+- `getProfilePhotoURL()` - URL'i al
+
+---
+
+**Son Guncelleme:** 2026-02-01 (v7.2)

@@ -12,6 +12,9 @@ class UserProfile {
   final String? bio;
   final UserStats stats;
 
+  // v7.2 fields
+  final List<String> interests;
+
   UserProfile({
     required this.uid,
     required this.email,
@@ -21,7 +24,9 @@ class UserProfile {
     this.photoURL,
     this.bio,
     UserStats? stats,
-  }) : stats = stats ?? UserStats();
+    List<String>? interests,
+  })  : stats = stats ?? UserStats(),
+        interests = interests ?? [];
 
   factory UserProfile.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -36,6 +41,7 @@ class UserProfile {
       stats: data['stats'] != null
           ? UserStats.fromMap(data['stats'] as Map<String, dynamic>)
           : UserStats(),
+      interests: List<String>.from(data['interests'] ?? []),
     );
   }
 
@@ -48,6 +54,7 @@ class UserProfile {
       if (photoURL != null) 'photoURL': photoURL,
       if (bio != null) 'bio': bio,
       'stats': stats.toMap(),
+      'interests': interests,
     };
   }
 
@@ -57,6 +64,7 @@ class UserProfile {
     String? bio,
     List<String>? communityIds,
     UserStats? stats,
+    List<String>? interests,
   }) {
     return UserProfile(
       uid: uid,
@@ -67,6 +75,7 @@ class UserProfile {
       photoURL: photoURL ?? this.photoURL,
       bio: bio ?? this.bio,
       stats: stats ?? this.stats,
+      interests: interests ?? this.interests,
     );
   }
 

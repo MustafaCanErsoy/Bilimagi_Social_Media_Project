@@ -89,6 +89,7 @@ class ProfileService {
       'bio': null,
       'photoURL': null,
       'avatarColorIndex': uid.hashCode.abs() % 8,
+      'interests': [],
       'stats': {
         'totalVotes': 0,
         'totalComments': 0,
@@ -97,5 +98,42 @@ class ProfileService {
         'joinedAt': FieldValue.serverTimestamp(),
       },
     });
+  }
+
+  /// v7.2: Update profile photo URL
+  Future<void> updateProfilePhoto(String photoURL) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw Exception('Kullanici oturumu acik degil');
+
+    await _firestore.collection('users').doc(uid).update({
+      'photoURL': photoURL,
+    });
+  }
+
+  /// v7.2: Remove profile photo
+  Future<void> removeProfilePhoto() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw Exception('Kullanici oturumu acik degil');
+
+    await _firestore.collection('users').doc(uid).update({
+      'photoURL': FieldValue.delete(),
+    });
+  }
+
+  /// v7.2: Update user interests
+  Future<void> updateInterests(List<String> interests) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw Exception('Kullanici oturumu acik degil');
+
+    await _firestore.collection('users').doc(uid).update({
+      'interests': interests,
+    });
+  }
+
+  /// v7.2: Get user profile once (not stream)
+  Future<UserProfile?> getUserProfileOnce(String uid) async {
+    final doc = await _firestore.collection('users').doc(uid).get();
+    if (!doc.exists) return null;
+    return UserProfile.fromFirestore(doc);
   }
 }
