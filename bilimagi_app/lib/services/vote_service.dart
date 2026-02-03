@@ -11,7 +11,7 @@ class VoteService {
 
   /// Vote on a comment (upvote or downvote)
   Future<void> voteComment({
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String commentId,
     required VoteType type,
@@ -20,8 +20,8 @@ class VoteService {
     if (uid == null) throw Exception('User not logged in');
 
     final commentRef = _firestore
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc(articleId)
         .collection('comments')
@@ -110,7 +110,7 @@ class VoteService {
           await _notificationService.createUpvoteNotification(
             targetUid: commentAuthorUid,
             fromDisplayName: displayName,
-            weekId: weekId,
+            periodId: periodId,
             articleId: articleId,
             commentId: commentId,
           );
@@ -123,7 +123,7 @@ class VoteService {
 
   /// Get current user's vote on a comment
   Stream<VoteType?> getUserVote({
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String commentId,
   }) {
@@ -131,8 +131,8 @@ class VoteService {
     if (uid == null) return Stream.value(null);
 
     return _firestore
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc(articleId)
         .collection('comments')

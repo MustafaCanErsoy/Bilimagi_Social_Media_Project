@@ -4,6 +4,180 @@ All notable changes to Bilimagi will be documented in this file.
 
 ---
 
+## [v9.0] - 2026-02-03
+
+### Changed - Week -> Period Sistemi Donusumu
+
+**Hafta Sistemi -> Donem Sistemi:**
+- Week modeli Period modeli ile degistirildi
+- WeekService -> PeriodService donusumu
+- WeekScreen -> PeriodScreen donusumu
+- Esnek donem sistemi (takvime bagli degil)
+- Donem basligi ve aciklamasi destegi
+- Baslangic/bitis tarihleri (opsiyonel)
+
+**Coklu Makale Tartismasi:**
+- Artik tek kazanan makale yerine birden fazla makale tartisabilir
+- `minVotesForDiscussion` esigi ile tartisma hakki belirlenir
+- Esigi gecen makaleler tartismaya acilir
+- Esik alti makaleler salt-okunur olarak gosterilir
+
+**Coklu Oylama Sistemi:**
+- Kullanicilar birden fazla makaleye oy verebilir
+- Toggle bazli oylama (tikla = oy ver, tekrar tikla = geri al)
+- Set<String> bazli oy takibi
+
+**Firestore Yapi Degisiklikleri:**
+- `weeks` collection -> `periods` collection
+- `currentWeekId` -> `currentPeriodId`
+- `weekId` -> `periodId` tum dosyalarda
+- Article modeline `isEligibleForDiscussion` alani eklendi
+
+**Yeni Dosyalar:**
+- `lib/models/period.dart` - Yeni donem modeli
+- `lib/services/period_service.dart` - Donem servisi (CRUD, faz gecisi, coklu oylama)
+- `lib/screens/period_screen.dart` - Donem ekrani
+- `lib/screens/period_create_screen.dart` - Donem olusturma ekrani
+
+**Silinen Dosyalar:**
+- `lib/models/week.dart`
+- `lib/services/week_service.dart`
+- `lib/screens/week_screen.dart`
+
+**Guncellenen Dosyalar (~30):**
+- Tum modeller weekId -> periodId guncellemesi
+- Tum servisler weeks -> periods collection guncellemesi
+- Tum ekranlar Period entegrasyonu
+- Tum widgetlar Period parametreleri
+
+---
+
+## [v8.0] - 2026-02-03
+
+### Added - Topluluk Sistemi Buyuk Gelistirme
+
+**Kategori 1 - Faz Yonetimi:**
+- Owner/Moderator faz degistirme yetkisi
+- `changePhaseWithAuth()` metodu (week_service.dart)
+- Topluluk yonetim ekraninda faz kontrol UI (3 buton)
+- Onay dialoglu faz gecisi
+
+**Kategori 2 - Topluluk Yonetimi:**
+- JoinType enum: open (onaysiz katilim), approval (onay gerekli)
+- Topluluk kapak fotografı yukleme (Firebase Storage)
+- Topluluk kurallari sayfasi (Markdown destegi)
+- Acik katilim sistemi (direkt uyelik)
+- community_card.dart'a kapak gosterimi ve acik katilim etiketi
+
+**Kategori 3 - Makale Sistemi:**
+- Article modeli genisletildi (heroImageURL, content, status, author alanlari)
+- ArticleStatus enum (draft, published, archived)
+- Makale taslak sistemi (kaydet + yayinla)
+- Basit Markdown editoru (kalin, italik, link, liste, baslik)
+- Markdown onizleme ve gosterim
+- Hero gorsel yukleme (article_post_card.dart)
+- article_edit_screen.dart - Makale duzenleme ekrani
+
+**Kategori 4 - Uyelik & Etkilesim:**
+- 6 rozet tipi: Yeni Uye, Aktif Uye, Kidemli Uye, En Cok Katki, Yardimci, Veteran
+- Katki puan sistemi (yorum=5, oy=1, oneri=10, onaylanan=25, upvote=2)
+- 6 seviye: Baslangic, Merakli, Kesfedici, Uzman, Usta, Bilge
+- Gercek zamanli rozet guncellemesi
+- badge_display.dart ve contribution_level_card.dart widget'lari
+
+**Kategori 5 - Yeni Ozellikler:**
+- Topluluk duyuru sistemi (announcement_service.dart)
+- Pinned yorum ozelligi (pinComment, unpinComment)
+- Topluluk anket sistemi (poll_service.dart)
+- Coklu secenek destekli anketler
+- Anket olusturma ekrani (poll_create_screen.dart)
+
+**Yeni Dosyalar:**
+
+*Models:*
+- `lib/models/user_badge.dart` - Rozet modeli ve BadgeChecker
+- `lib/models/contribution_score.dart` - Katki puan ve seviye sistemi
+- `lib/models/announcement.dart` - Duyuru modeli
+- `lib/models/poll.dart` - Anket ve oylama modeli
+
+*Services:*
+- `lib/services/article_service.dart` - Makale CRUD ve taslak islemleri
+- `lib/services/badge_service.dart` - Rozet ve katki yonetimi
+- `lib/services/announcement_service.dart` - Duyuru CRUD
+- `lib/services/poll_service.dart` - Anket CRUD ve oylama
+
+*Widgets:*
+- `lib/widgets/markdown_editor.dart` - Formatlama araclariyla markdown editoru
+- `lib/widgets/markdown_viewer.dart` - Markdown icerik gosterici
+- `lib/widgets/badge_display.dart` - Rozet chip'leri ve liste
+- `lib/widgets/contribution_level_card.dart` - Seviye ve ilerleme karti
+- `lib/widgets/announcement_card.dart` - Duyuru karti ve banner
+- `lib/widgets/poll_card.dart` - Anket karti ve oylama UI
+
+*Screens:*
+- `lib/screens/community_rules_screen.dart` - Topluluk kurallari duzenleyici
+- `lib/screens/article_edit_screen.dart` - Makale olusturma/duzenleme
+- `lib/screens/poll_create_screen.dart` - Anket olusturma formu
+
+### Changed
+
+**Guncellenen Modeller:**
+- `lib/models/community.dart` - +JoinType, +coverPhotoURL, +rules
+- `lib/models/article.dart` - +heroImageURL, +content, +status, +authorUid, +authorDisplayName, +createdAt, +updatedAt, +publishedAt
+- `lib/models/comment.dart` - +isPinned, +pinnedByUid, +pinnedAt
+- `lib/models/user_profile.dart` - +badges, +contribution
+
+**Guncellenen Servisler:**
+- `lib/services/week_service.dart` - +changePhaseWithAuth()
+- `lib/services/community_service.dart` - +JoinType mantigi, +kapak/kurallar desteği
+- `lib/services/storage_service.dart` - +uploadCommunityCover(), +uploadArticleHeroImage()
+- `lib/services/comment_service.dart` - +pinComment(), +unpinComment()
+
+**Guncellenen Ekranlar:**
+- `lib/screens/community_manage_screen.dart` - Faz kontrolu, kapak, kurallar, katilim tipi UI
+- `lib/screens/community_create_screen.dart` - Katilim tipi secimi
+
+**Guncellenen Widgetlar:**
+- `lib/widgets/community_card.dart` - Kapak gosterimi, acik katilim etiketi
+- `lib/widgets/article_post_card.dart` - Hero gorsel gosterimi
+
+### Firestore Schema Changes
+
+**communities/{communityId} (UPDATED):**
+- `+joinType: "open" | "approval"`
+- `+coverPhotoURL: string?`
+- `+rules: string?`
+
+**weeks/{weekId}/articles/{articleId} (UPDATED):**
+- `+heroImageURL: string?`
+- `+content: string?`
+- `+status: "draft" | "published" | "archived"`
+- `+authorUid: string?`
+- `+authorDisplayName: string?`
+- `+createdAt: timestamp?`
+- `+updatedAt: timestamp?`
+- `+publishedAt: timestamp?`
+
+**comments (UPDATED):**
+- `+isPinned: boolean`
+- `+pinnedByUid: string?`
+- `+pinnedAt: timestamp?`
+
+**users/{uid} (UPDATED):**
+- `+badges: array<{type, earnedAt}>`
+- `+contribution: {totalComments, totalVotes, totalSuggestions, approvedSuggestions, receivedUpvotes}`
+
+**communities/{communityId}/announcements/{id} (NEW):**
+- `title, content, authorUid, authorDisplayName, createdAt, expiresAt?, isPinned`
+
+**communities/{communityId}/polls/{pollId} (NEW):**
+- `question, options[], authorUid, authorDisplayName, createdAt, endsAt?, status, allowMultiple, totalVotes`
+
+**communities/{communityId}/polls/{pollId}/votes/{uid} (NEW):**
+- `optionIds[], votedAt`
+
+---
+
 ## [v7.2] - 2026-02-01
 
 ### Added - Profil Gelistirmeleri

@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'user_badge.dart';
+import 'contribution_score.dart';
 
 class UserProfile {
   final String uid;
@@ -15,6 +17,10 @@ class UserProfile {
   // v7.2 fields
   final List<String> interests;
 
+  // v8.0 fields
+  final List<UserBadge> badges;
+  final ContributionScore contribution;
+
   UserProfile({
     required this.uid,
     required this.email,
@@ -25,11 +31,22 @@ class UserProfile {
     this.bio,
     UserStats? stats,
     List<String>? interests,
+    List<UserBadge>? badges,
+    ContributionScore? contribution,
   })  : stats = stats ?? UserStats(),
-        interests = interests ?? [];
+        interests = interests ?? [],
+        badges = badges ?? [],
+        contribution = contribution ?? const ContributionScore();
 
   factory UserProfile.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+
+    // Parse badges (v8.0)
+    final badgesData = data['badges'] as List<dynamic>? ?? [];
+    final badges = badgesData
+        .map((b) => UserBadge.fromMap(b as Map<String, dynamic>))
+        .toList();
+
     return UserProfile(
       uid: doc.id,
       email: data['email'] ?? '',
@@ -42,6 +59,8 @@ class UserProfile {
           ? UserStats.fromMap(data['stats'] as Map<String, dynamic>)
           : UserStats(),
       interests: List<String>.from(data['interests'] ?? []),
+      badges: badges,
+      contribution: ContributionScore.fromMap(data['contribution']),
     );
   }
 
@@ -55,6 +74,8 @@ class UserProfile {
       if (bio != null) 'bio': bio,
       'stats': stats.toMap(),
       'interests': interests,
+      'badges': badges.map((b) => b.toMap()).toList(),
+      'contribution': contribution.toMap(),
     };
   }
 
@@ -65,6 +86,8 @@ class UserProfile {
     List<String>? communityIds,
     UserStats? stats,
     List<String>? interests,
+    List<UserBadge>? badges,
+    ContributionScore? contribution,
   }) {
     return UserProfile(
       uid: uid,
@@ -76,7 +99,17 @@ class UserProfile {
       bio: bio ?? this.bio,
       stats: stats ?? this.stats,
       interests: interests ?? this.interests,
+      badges: badges ?? this.badges,
+      contribution: contribution ?? this.contribution,
     );
+  }
+
+  /// Get primary badge (highest priority)
+  UserBadge? get primaryBadge {
+    if (badges.isEmpty) return null;
+    final sorted = List<UserBadge>.from(badges)
+      ..sort((a, b) => b.type.priority.compareTo(a.type.priority));
+    return sorted.first;
   }
 
   // Get avatar color based on UID (consistent color per user)

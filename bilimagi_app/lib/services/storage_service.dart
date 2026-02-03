@@ -74,4 +74,86 @@ class StorageService {
       return null;
     }
   }
+
+  // ==================== COMMUNITY PHOTOS (v8.0) ====================
+
+  /// Upload community cover photo and return download URL
+  /// Path: communities/{communityId}/cover_photo.jpg
+  Future<String> uploadCommunityCover(
+    String communityId,
+    Uint8List imageBytes,
+  ) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw Exception('Kullanici oturumu acik degil');
+
+    // Compress image if too large (max 1MB for cover photos)
+    Uint8List processedBytes = imageBytes;
+    if (imageBytes.length > 1024 * 1024) {
+      processedBytes = await _compressImage(imageBytes);
+    }
+
+    final ref = _storage.ref().child('communities/$communityId/cover_photo.jpg');
+
+    final metadata = SettableMetadata(
+      contentType: 'image/jpeg',
+      customMetadata: {
+        'uploadedAt': DateTime.now().toIso8601String(),
+        'uploadedByUid': uid,
+      },
+    );
+
+    await ref.putData(processedBytes, metadata);
+
+    return await ref.getDownloadURL();
+  }
+
+  /// Delete community cover photo from storage
+  Future<void> deleteCommunityCover(String communityId) async {
+    try {
+      final ref = _storage.ref().child('communities/$communityId/cover_photo.jpg');
+      await ref.delete();
+    } catch (e) {
+      // File might not exist, ignore error
+    }
+  }
+
+  /// Upload article hero image and return download URL
+  /// Path: articles/{weekId}/{articleId}/hero_image.jpg
+  Future<String> uploadArticleHeroImage(
+    String weekId,
+    String articleId,
+    Uint8List imageBytes,
+  ) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw Exception('Kullanici oturumu acik degil');
+
+    Uint8List processedBytes = imageBytes;
+    if (imageBytes.length > 1024 * 1024) {
+      processedBytes = await _compressImage(imageBytes);
+    }
+
+    final ref = _storage.ref().child('articles/$weekId/$articleId/hero_image.jpg');
+
+    final metadata = SettableMetadata(
+      contentType: 'image/jpeg',
+      customMetadata: {
+        'uploadedAt': DateTime.now().toIso8601String(),
+        'uploadedByUid': uid,
+      },
+    );
+
+    await ref.putData(processedBytes, metadata);
+
+    return await ref.getDownloadURL();
+  }
+
+  /// Delete article hero image from storage
+  Future<void> deleteArticleHeroImage(String weekId, String articleId) async {
+    try {
+      final ref = _storage.ref().child('articles/$weekId/$articleId/hero_image.jpg');
+      await ref.delete();
+    } catch (e) {
+      // File might not exist, ignore error
+    }
+  }
 }

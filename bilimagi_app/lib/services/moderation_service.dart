@@ -17,7 +17,7 @@ class ModerationService {
   /// Hide a comment (mod/owner only)
   Future<void> hideComment({
     required String communityId,
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String commentId,
     String? reason,
@@ -36,8 +36,8 @@ class ModerationService {
 
     // Get comment author info for log
     final commentDoc = await _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc(articleId)
         .collection('comments')
@@ -52,8 +52,8 @@ class ModerationService {
 
     // Update comment
     final commentRef = _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc(articleId)
         .collection('comments')
@@ -90,7 +90,7 @@ class ModerationService {
   /// Unhide a comment (mod/owner only)
   Future<void> unhideComment({
     required String communityId,
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String commentId,
   }) async {
@@ -110,8 +110,8 @@ class ModerationService {
 
     // Update comment
     final commentRef = _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc(articleId)
         .collection('comments')
@@ -144,7 +144,7 @@ class ModerationService {
 
   /// Get hidden comments for a community's weeks
   Stream<List<Comment>> getHiddenComments(String communityId) {
-    // This requires knowing weekId - for now return empty
+    // This requires knowing periodId - for now return empty
     // In a real implementation, you'd query across all weeks for this community
     return Stream.value([]);
   }

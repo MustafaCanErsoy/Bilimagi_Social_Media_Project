@@ -132,14 +132,14 @@ class SuggestionCard extends StatelessWidget {
                   // Interest button
                   StreamBuilder<bool>(
                     stream: suggestionService.hasExpressedInterest(
-                      suggestion.weekId,
+                      suggestion.periodId,
                       suggestion.id,
                     ),
                     builder: (context, snapshot) {
                       final hasInterest = snapshot.data ?? false;
                       return TextButton.icon(
                         onPressed: () => suggestionService.toggleInterest(
-                          suggestion.weekId,
+                          suggestion.periodId,
                           suggestion.id,
                         ),
                         icon: Icon(

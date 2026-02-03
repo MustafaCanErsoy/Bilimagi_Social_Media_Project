@@ -14,7 +14,7 @@ class SuggestionService {
 
   /// Submit a new article suggestion
   Future<String> submitSuggestion({
-    required String weekId,
+    required String periodId,
     required String title,
     required String summary,
     required String link,
@@ -26,14 +26,14 @@ class SuggestionService {
     final displayName = userDoc.data()?['displayName'] ?? 'Anonim';
 
     final suggestionRef = _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('suggestions')
         .doc();
 
     final suggestion = ArticleSuggestion(
       id: suggestionRef.id,
-      weekId: weekId,
+      periodId: periodId,
       title: title,
       summary: summary,
       link: link,
@@ -47,37 +47,37 @@ class SuggestionService {
   }
 
   /// Get all suggestions for a week
-  Stream<List<ArticleSuggestion>> getSuggestions(String weekId) {
+  Stream<List<ArticleSuggestion>> getSuggestions(String periodId) {
     return _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('suggestions')
         .orderBy('interestScore', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => ArticleSuggestion.fromFirestore(doc, weekId))
+            .map((doc) => ArticleSuggestion.fromFirestore(doc, periodId))
             .toList());
   }
 
   /// Get pending suggestions for a week
-  Stream<List<ArticleSuggestion>> getPendingSuggestions(String weekId) {
+  Stream<List<ArticleSuggestion>> getPendingSuggestions(String periodId) {
     return _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('suggestions')
         .where('status', isEqualTo: 'pending')
         .orderBy('interestScore', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => ArticleSuggestion.fromFirestore(doc, weekId))
+            .map((doc) => ArticleSuggestion.fromFirestore(doc, periodId))
             .toList());
   }
 
   /// Get pending suggestion count (for badge)
-  Stream<int> getPendingSuggestionCount(String weekId) {
+  Stream<int> getPendingSuggestionCount(String periodId) {
     return _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('suggestions')
         .where('status', isEqualTo: 'pending')
         .snapshots()
@@ -85,35 +85,35 @@ class SuggestionService {
   }
 
   /// Get single suggestion
-  Future<ArticleSuggestion?> getSuggestion(String weekId, String suggestionId) async {
+  Future<ArticleSuggestion?> getSuggestion(String periodId, String suggestionId) async {
     final doc = await _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('suggestions')
         .doc(suggestionId)
         .get();
 
     if (!doc.exists) return null;
-    return ArticleSuggestion.fromFirestore(doc, weekId);
+    return ArticleSuggestion.fromFirestore(doc, periodId);
   }
 
   // ==================== APPROVAL / REJECTION ====================
 
   /// Approve suggestion and convert to article
-  Future<void> approveSuggestion(String weekId, String suggestionId) async {
+  Future<void> approveSuggestion(String periodId, String suggestionId) async {
     final uid = _currentUid;
     if (uid == null) throw Exception('User not logged in');
 
     final suggestionDoc = await _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('suggestions')
         .doc(suggestionId)
         .get();
 
     if (!suggestionDoc.exists) throw Exception('Suggestion not found');
 
-    final suggestion = ArticleSuggestion.fromFirestore(suggestionDoc, weekId);
+    final suggestion = ArticleSuggestion.fromFirestore(suggestionDoc, periodId);
     if (!suggestion.isPending) throw Exception('Suggestion already reviewed');
 
     final batch = _db.batch();
@@ -127,8 +127,8 @@ class SuggestionService {
 
     // Create article from suggestion
     final articleRef = _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc();
 
@@ -143,7 +143,7 @@ class SuggestionService {
     });
 
     // Update community stats
-    final weekDoc = await _db.collection('weeks').doc(weekId).get();
+    final weekDoc = await _db.collection('periods').doc(periodId).get();
     final communityId = weekDoc.data()?['communityId'];
     if (communityId != null) {
       batch.update(_db.collection('communities').doc(communityId), {
@@ -157,25 +157,25 @@ class SuggestionService {
     await _notificationService.createSuggestionApprovedNotification(
       targetUid: suggestion.submitterUid,
       suggestionTitle: suggestion.title,
-      weekId: weekId,
+      periodId: periodId,
     );
   }
 
   /// Reject suggestion
-  Future<void> rejectSuggestion(String weekId, String suggestionId, {String? reason}) async {
+  Future<void> rejectSuggestion(String periodId, String suggestionId, {String? reason}) async {
     final uid = _currentUid;
     if (uid == null) throw Exception('User not logged in');
 
     final suggestionDoc = await _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('suggestions')
         .doc(suggestionId)
         .get();
 
     if (!suggestionDoc.exists) throw Exception('Suggestion not found');
 
-    final suggestion = ArticleSuggestion.fromFirestore(suggestionDoc, weekId);
+    final suggestion = ArticleSuggestion.fromFirestore(suggestionDoc, periodId);
     if (!suggestion.isPending) throw Exception('Suggestion already reviewed');
 
     await suggestionDoc.reference.update({
@@ -189,7 +189,7 @@ class SuggestionService {
     await _notificationService.createSuggestionRejectedNotification(
       targetUid: suggestion.submitterUid,
       suggestionTitle: suggestion.title,
-      weekId: weekId,
+      periodId: periodId,
       reason: reason,
     );
   }
@@ -197,21 +197,21 @@ class SuggestionService {
   // ==================== INTEREST VOTES ====================
 
   /// Toggle interest for a suggestion
-  Future<void> toggleInterest(String weekId, String suggestionId) async {
+  Future<void> toggleInterest(String periodId, String suggestionId) async {
     final uid = _currentUid;
     if (uid == null) throw Exception('User not logged in');
 
     final interestRef = _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('suggestions')
         .doc(suggestionId)
         .collection('interests')
         .doc(uid);
 
     final suggestionRef = _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('suggestions')
         .doc(suggestionId);
 
@@ -239,13 +239,13 @@ class SuggestionService {
   }
 
   /// Check if current user has expressed interest
-  Stream<bool> hasExpressedInterest(String weekId, String suggestionId) {
+  Stream<bool> hasExpressedInterest(String periodId, String suggestionId) {
     final uid = _currentUid;
     if (uid == null) return Stream.value(false);
 
     return _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('suggestions')
         .doc(suggestionId)
         .collection('interests')
@@ -255,10 +255,10 @@ class SuggestionService {
   }
 
   /// Get interest count for a suggestion
-  Stream<int> getInterestCount(String weekId, String suggestionId) {
+  Stream<int> getInterestCount(String periodId, String suggestionId) {
     return _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('suggestions')
         .doc(suggestionId)
         .collection('interests')

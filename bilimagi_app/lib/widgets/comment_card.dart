@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/week.dart';
+import '../models/period.dart';
 import '../models/comment.dart';
 import '../models/comment_tree.dart';
 import '../services/mention_service.dart';
@@ -12,7 +12,7 @@ import 'vote_buttons.dart';
 /// Comment card widget for displaying a single comment
 class CommentCard extends StatelessWidget {
   final CommentTree commentNode;
-  final Week week;
+  final Period period;
   final String articleId;
   final VoidCallback onReply;
   final VoidCallback? onEdit;
@@ -28,7 +28,7 @@ class CommentCard extends StatelessWidget {
   const CommentCard({
     super.key,
     required this.commentNode,
-    required this.week,
+    required this.period,
     required this.articleId,
     required this.onReply,
     this.onEdit,
@@ -231,7 +231,7 @@ class CommentCard extends StatelessWidget {
         ],
         const Spacer(),
         // v4.0: Edit button for own comments
-        if (isOwnComment && week.phase == WeekPhase.discussion && onEdit != null)
+        if (isOwnComment && period.phase == PeriodPhase.discussion && onEdit != null)
           GestureDetector(
             onTap: onEdit,
             child: Icon(
@@ -241,7 +241,7 @@ class CommentCard extends StatelessWidget {
             ),
           ),
         // v4.0: Delete button for own comments
-        if (isOwnComment && week.phase == WeekPhase.discussion && onDelete != null) ...[
+        if (isOwnComment && period.phase == PeriodPhase.discussion && onDelete != null) ...[
           const SizedBox(width: 8),
           GestureDetector(
             onTap: onDelete,
@@ -366,13 +366,13 @@ class CommentCard extends StatelessWidget {
       children: [
         // Upvote/Downvote buttons
         VoteButtons(
-          weekId: week.id,
+          periodId: period.id,
           articleId: articleId,
           comment: comment,
         ),
         const SizedBox(width: 16),
         // Reply button (only in discussion phase)
-        if (week.phase == WeekPhase.discussion)
+        if (period.phase == PeriodPhase.discussion)
           TextButton.icon(
             onPressed: onReply,
             icon: Icon(

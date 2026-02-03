@@ -6,7 +6,7 @@ import '../models/community_membership.dart';
 import '../core/theme.dart';
 import '../widgets/community_card.dart';
 import '../widgets/community_search_bar.dart';
-import 'week_screen.dart';
+import 'period_screen.dart';
 import 'admin_screen.dart';
 import 'community_create_screen.dart';
 
@@ -362,7 +362,7 @@ class _CommunitySelectScreenState extends State<CommunitySelectScreen>
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => WeekScreen(community: community),
+              builder: (context) => PeriodScreen(community: community),
             ),
           );
         }

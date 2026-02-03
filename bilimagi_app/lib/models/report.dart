@@ -50,7 +50,7 @@ class Report {
   final String targetId;
   final String targetUid;
   final String? targetDisplayName;
-  final String? weekId;
+  final String? periodId;
   final String? articleId;
   final String reason;
   final String? details;
@@ -68,7 +68,7 @@ class Report {
     required this.targetId,
     required this.targetUid,
     this.targetDisplayName,
-    this.weekId,
+    this.periodId,
     this.articleId,
     required this.reason,
     this.details,
@@ -89,7 +89,7 @@ class Report {
       targetId: data['targetId'] ?? '',
       targetUid: data['targetUid'] ?? '',
       targetDisplayName: data['targetDisplayName'],
-      weekId: data['weekId'],
+      periodId: data['periodId'],
       articleId: data['articleId'],
       reason: data['reason'] ?? '',
       details: data['details'],
@@ -109,7 +109,7 @@ class Report {
       'targetId': targetId,
       'targetUid': targetUid,
       'targetDisplayName': targetDisplayName,
-      'weekId': weekId,
+      'periodId': periodId,
       'articleId': articleId,
       'reason': reason,
       'details': details,

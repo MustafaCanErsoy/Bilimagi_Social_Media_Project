@@ -13,10 +13,10 @@ class CommentService {
   final _notificationService = NotificationService();
 
   /// Get comments for an article (stream)
-  Stream<List<Comment>> getComments(String weekId, String articleId) {
+  Stream<List<Comment>> getComments(String periodId, String articleId) {
     return _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc(articleId)
         .collection('comments')
@@ -28,10 +28,10 @@ class CommentService {
   }
 
   /// Get comment count for an article (stream)
-  Stream<int> getCommentCount(String weekId, String articleId) {
+  Stream<int> getCommentCount(String periodId, String articleId) {
     return _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc(articleId)
         .collection('comments')
@@ -46,7 +46,7 @@ class CommentService {
   }
 
   /// Add a top-level comment
-  Future<void> addComment(String weekId, String articleId, String text) async {
+  Future<void> addComment(String periodId, String articleId, String text) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not logged in');
 
@@ -55,8 +55,8 @@ class CommentService {
     final displayName = userDoc.data()?['displayName'] ?? 'Anonim';
 
     final newCommentRef = await _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc(articleId)
         .collection('comments')
@@ -80,7 +80,7 @@ class CommentService {
       text: text,
       fromUid: user.uid,
       fromDisplayName: displayName,
-      weekId: weekId,
+      periodId: periodId,
       articleId: articleId,
       commentId: newCommentRef.id,
     );
@@ -88,7 +88,7 @@ class CommentService {
 
   /// Add reply to a comment
   Future<void> addReply(
-    String weekId,
+    String periodId,
     String articleId,
     String parentCommentId,
     int parentDepth,
@@ -102,8 +102,8 @@ class CommentService {
     final displayName = userDoc.data()?['displayName'] ?? 'Anonim';
 
     final commentsRef = _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc(articleId)
         .collection('comments');
@@ -136,7 +136,7 @@ class CommentService {
       parentCommentId: parentCommentId,
       fromUid: user.uid,
       fromDisplayName: displayName,
-      weekId: weekId,
+      periodId: periodId,
       articleId: articleId,
       newCommentId: newCommentRef.id,
       text: text,
@@ -147,7 +147,7 @@ class CommentService {
       text: text,
       fromUid: user.uid,
       fromDisplayName: displayName,
-      weekId: weekId,
+      periodId: periodId,
       articleId: articleId,
       commentId: newCommentRef.id,
     );
@@ -155,7 +155,7 @@ class CommentService {
 
   /// Edit a comment
   Future<void> editComment(
-    String weekId,
+    String periodId,
     String articleId,
     String commentId,
     String newText,
@@ -164,8 +164,8 @@ class CommentService {
     if (user == null) throw Exception('User not logged in');
 
     final commentRef = _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc(articleId)
         .collection('comments')
@@ -190,7 +190,7 @@ class CommentService {
 
   /// Delete a comment (soft delete)
   Future<void> deleteComment(
-    String weekId,
+    String periodId,
     String articleId,
     String commentId,
   ) async {
@@ -198,8 +198,8 @@ class CommentService {
     if (user == null) throw Exception('User not logged in');
 
     final commentRef = _db
-        .collection('weeks')
-        .doc(weekId)
+        .collection('periods')
+        .doc(periodId)
         .collection('articles')
         .doc(articleId)
         .collection('comments')
@@ -225,7 +225,7 @@ class CommentService {
     required String text,
     required String fromUid,
     required String fromDisplayName,
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String commentId,
   }) async {
@@ -236,7 +236,7 @@ class CommentService {
           await _notificationService.createMentionNotification(
             targetUid: mentionedUid,
             fromDisplayName: fromDisplayName,
-            weekId: weekId,
+            periodId: periodId,
             articleId: articleId,
             commentId: commentId,
             preview: MentionService.getDisplayText(
@@ -256,7 +256,7 @@ class CommentService {
     required String parentCommentId,
     required String fromUid,
     required String fromDisplayName,
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String newCommentId,
     required String text,
@@ -269,7 +269,7 @@ class CommentService {
           await _notificationService.createReplyNotification(
             targetUid: parentUid,
             fromDisplayName: fromDisplayName,
-            weekId: weekId,
+            periodId: periodId,
             articleId: articleId,
             commentId: newCommentId,
             preview: MentionService.getDisplayText(
@@ -280,6 +280,109 @@ class CommentService {
       }
     } catch (e) {
       print('Reply notification error: $e');
+    }
+  }
+
+  // ==================== PIN OPERATIONS (v8.0) ====================
+
+  /// Pin a comment to the top
+  Future<void> pinComment({
+    required String periodId,
+    required String articleId,
+    required String commentId,
+    required String communityId,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Kullanici oturumu acik degil');
+
+    // Check permission (owner or moderator)
+    await _checkModPermission(communityId, user.uid);
+
+    // First, unpin any existing pinned comments
+    final pinnedComments = await _db
+        .collection('periods')
+        .doc(periodId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments')
+        .where('isPinned', isEqualTo: true)
+        .get();
+
+    final batch = _db.batch();
+
+    for (final doc in pinnedComments.docs) {
+      batch.update(doc.reference, {
+        'isPinned': false,
+        'pinnedByUid': FieldValue.delete(),
+        'pinnedAt': FieldValue.delete(),
+      });
+    }
+
+    // Pin the new comment
+    final commentRef = _db
+        .collection('periods')
+        .doc(periodId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments')
+        .doc(commentId);
+
+    batch.update(commentRef, {
+      'isPinned': true,
+      'pinnedByUid': user.uid,
+      'pinnedAt': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+  }
+
+  /// Unpin a comment
+  Future<void> unpinComment({
+    required String periodId,
+    required String articleId,
+    required String commentId,
+    required String communityId,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Kullanici oturumu acik degil');
+
+    await _checkModPermission(communityId, user.uid);
+
+    await _db
+        .collection('periods')
+        .doc(periodId)
+        .collection('articles')
+        .doc(articleId)
+        .collection('comments')
+        .doc(commentId)
+        .update({
+      'isPinned': false,
+      'pinnedByUid': FieldValue.delete(),
+      'pinnedAt': FieldValue.delete(),
+    });
+  }
+
+  /// Check if user has moderation permission
+  Future<void> _checkModPermission(String communityId, String uid) async {
+    // Check if admin
+    final userDoc = await _db.collection('users').doc(uid).get();
+    if (userDoc.data()?['role'] == 'admin') return;
+
+    // Check if owner or moderator
+    final memberDoc = await _db
+        .collection('communities')
+        .doc(communityId)
+        .collection('members')
+        .doc(uid)
+        .get();
+
+    if (!memberDoc.exists) {
+      throw Exception('Bu islemi yapma yetkiniz yok');
+    }
+
+    final role = memberDoc.data()?['role'];
+    if (role != 'owner' && role != 'moderator') {
+      throw Exception('Bu islemi yapma yetkiniz yok');
     }
   }
 }

@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
-import '../models/week.dart';
+import '../models/period.dart';
 import '../models/article.dart';
 import '../core/theme.dart';
 import '../services/comment_service.dart';
-import '../services/week_service.dart';
+import '../services/period_service.dart';
 
 /// Instagram-style article post card for discussion screen
 class ArticlePostCard extends StatelessWidget {
-  final Week week;
+  final Period period;
   final Article article;
 
   const ArticlePostCard({
     super.key,
-    required this.week,
+    required this.period,
     required this.article,
   });
 
@@ -38,6 +38,7 @@ class ArticlePostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.all(16),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: AppTheme.primaryGradient,
         borderRadius: BorderRadius.circular(20),
@@ -49,12 +50,28 @@ class ArticlePostCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Trophy badge
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Hero image (v8.0)
+          if (article.heroImageURL != null)
+            SizedBox(
+              height: 180,
+              width: double.infinity,
+              child: Image.network(
+                article.heroImageURL!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.white.withValues(alpha: 0.1),
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Trophy badge
             Row(
               children: [
                 Container(
@@ -157,7 +174,7 @@ class ArticlePostCard extends StatelessWidget {
               children: [
                 // Vote count (stream)
                 StreamBuilder<int>(
-                  stream: WeekService().getArticleVoteCount(week.id, article.id),
+                  stream: PeriodService().getArticleVoteCount(period.id, article.id),
                   builder: (context, snapshot) {
                     final count = snapshot.data ?? article.voteCount;
                     return Row(
@@ -182,7 +199,7 @@ class ArticlePostCard extends StatelessWidget {
                 const SizedBox(width: 16),
                 // Comment count (stream)
                 StreamBuilder<int>(
-                  stream: CommentService().getCommentCount(week.id, article.id),
+                  stream: CommentService().getCommentCount(period.id, article.id),
                   builder: (context, snapshot) {
                     final count = snapshot.data ?? 0;
                     return Row(
@@ -206,7 +223,7 @@ class ArticlePostCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Icon(
-                  week.phase == WeekPhase.discussion
+                  period.phase == PeriodPhase.discussion
                       ? Icons.lock_open
                       : Icons.lock,
                   color: Colors.white.withValues(alpha: 0.7),
@@ -214,9 +231,9 @@ class ArticlePostCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  week.phase == WeekPhase.discussion
-                      ? 'Açık'
-                      : 'Kapalı',
+                  period.phase == PeriodPhase.discussion
+                      ? 'Acik'
+                      : 'Kapali',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 13,
@@ -225,7 +242,9 @@ class ArticlePostCard extends StatelessWidget {
               ],
             ),
           ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }

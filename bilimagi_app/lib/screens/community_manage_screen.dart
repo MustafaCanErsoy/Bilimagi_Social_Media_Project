@@ -1,11 +1,18 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/community.dart';
+import '../models/period.dart';
 import '../core/theme.dart';
 import '../core/avatar_colors.dart';
 import '../services/community_service.dart';
+import '../services/period_service.dart';
+import '../services/storage_service.dart';
 import '../widgets/community_icon_picker.dart';
 import 'community_members_screen.dart';
 import 'moderation_dashboard_screen.dart';
+import 'community_rules_screen.dart';
+import 'period_create_screen.dart';
 
 /// Screen for managing community settings (owner/moderator only)
 class CommunityManageScreen extends StatefulWidget {
@@ -22,13 +29,17 @@ class CommunityManageScreen extends StatefulWidget {
 
 class _CommunityManageScreenState extends State<CommunityManageScreen> {
   final _communityService = CommunityService();
+  final _periodService = PeriodService();
+  final _storageService = StorageService();
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
 
   Community? _community;
+  Period? _currentPeriod;
   bool _isLoading = false;
   bool _hasChanges = false;
+  bool _isUploadingCover = false;
 
   @override
   void initState() {
@@ -51,6 +62,13 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
         _nameController.text = community.name;
         _descriptionController.text = community.description;
       });
+      // Load current period if exists
+      if (community.currentPeriodId != null) {
+        final period = await _periodService.getPeriodOnce(community.currentPeriodId!);
+        if (mounted) {
+          setState(() => _currentPeriod = period);
+        }
+      }
     }
   }
 
@@ -85,20 +103,31 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
     }
   }
 
-  Future<void> _createNewWeek() async {
+  Future<void> _changePhase(PeriodPhase newPhase) async {
+    if (_currentPeriod == null || _community == null) return;
+    if (_currentPeriod!.phase == newPhase) return;
+
+    final phaseNames = {
+      PeriodPhase.voting: 'Oylama',
+      PeriodPhase.discussion: 'Tartisma',
+      PeriodPhase.closed: 'Kapali',
+    };
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Yeni Hafta Oluştur'),
-        content: const Text('Yeni bir oylama haftası başlatmak istediğinize emin misiniz?'),
+        title: const Text('Fazi Degistir'),
+        content: Text(
+          'Mevcut donem "${phaseNames[newPhase]}" fazina gecirmek istediginize emin misiniz?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('İptal'),
+            child: const Text('Iptal'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Oluştur'),
+            child: const Text('Degistir'),
           ),
         ],
       ),
@@ -109,12 +138,162 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _communityService.createNewWeek(widget.communityId);
+      await _periodService.changePhase(
+        _currentPeriod!.id,
+        newPhase,
+        widget.communityId,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Yeni hafta oluşturuldu')),
+          SnackBar(content: Text('Faz "${phaseNames[newPhase]}" olarak degistirildi')),
         );
         await _loadCommunity();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _createNewPeriod() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PeriodCreateScreen(communityId: widget.communityId),
+      ),
+    );
+
+    if (result == true) {
+      await _loadCommunity();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Yeni donem olusturuldu')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickCoverPhoto() async {
+    if (_community == null) return;
+
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 600,
+      imageQuality: 85,
+    );
+
+    if (image == null) return;
+
+    setState(() => _isUploadingCover = true);
+
+    try {
+      final Uint8List imageBytes = await image.readAsBytes();
+      final downloadURL = await _storageService.uploadCommunityCover(
+        widget.communityId,
+        imageBytes,
+      );
+
+      await _communityService.updateCommunity(
+        widget.communityId,
+        coverPhotoURL: downloadURL,
+      );
+
+      await _loadCommunity();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kapak fotografı yuklendi')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingCover = false);
+      }
+    }
+  }
+
+  Future<void> _removeCoverPhoto() async {
+    if (_community == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Kapak Fotografini Kaldir'),
+        content: const Text('Kapak fotografini kaldirmak istediginize emin misiniz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Iptal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Kaldir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _storageService.deleteCommunityCover(widget.communityId);
+      await _communityService.updateCommunity(
+        widget.communityId,
+        clearCoverPhoto: true,
+      );
+      await _loadCommunity();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kapak fotografı kaldirildi')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _changeJoinType(JoinType newType) async {
+    if (_community == null || _community!.joinType == newType) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _communityService.updateCommunity(
+        widget.communityId,
+        joinType: newType,
+      );
+      await _loadCommunity();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Katilim tipi "${newType.label}" olarak degistirildi')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -187,6 +366,76 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Cover photo section (v8.0)
+              Card(
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Cover image or placeholder
+                    Stack(
+                      children: [
+                        Container(
+                          height: 120,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.2),
+                          ),
+                          child: _community!.coverPhotoURL != null
+                              ? Image.network(
+                                  _community!.coverPhotoURL!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Center(
+                                    child: Icon(Icons.image, size: 48, color: color),
+                                  ),
+                                )
+                              : Center(
+                                  child: Icon(Icons.add_photo_alternate, size: 48, color: color),
+                                ),
+                        ),
+                        if (_isUploadingCover)
+                          Container(
+                            height: 120,
+                            color: Colors.black45,
+                            child: const Center(
+                              child: CircularProgressIndicator(color: Colors.white),
+                            ),
+                          ),
+                        Positioned(
+                          right: 8,
+                          bottom: 8,
+                          child: Row(
+                            children: [
+                              if (_community!.coverPhotoURL != null)
+                                IconButton.filled(
+                                  onPressed: _isUploadingCover ? null : _removeCoverPhoto,
+                                  icon: const Icon(Icons.delete, size: 20),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                  ),
+                                ),
+                              const SizedBox(width: 4),
+                              IconButton.filled(
+                                onPressed: _isUploadingCover ? null : _pickCoverPhoto,
+                                icon: const Icon(Icons.camera_alt, size: 20),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Text(
+                        'Kapak Fotografı',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
               // Community icon
               Center(
                 child: GestureDetector(
@@ -264,6 +513,70 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
               ),
               const SizedBox(height: 24),
 
+              // Phase control section (v8.0)
+              if (_currentPeriod != null) ...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.schedule, color: AppTheme.primaryColor),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Mevcut Donem',
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                  Text(
+                                    _currentPeriod!.title,
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _PhaseButton(
+                                phase: PeriodPhase.voting,
+                                currentPhase: _currentPeriod!.phase,
+                                onTap: _isLoading ? null : () => _changePhase(PeriodPhase.voting),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _PhaseButton(
+                                phase: PeriodPhase.discussion,
+                                currentPhase: _currentPeriod!.phase,
+                                onTap: _isLoading ? null : () => _changePhase(PeriodPhase.discussion),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _PhaseButton(
+                                phase: PeriodPhase.closed,
+                                currentPhase: _currentPeriod!.phase,
+                                onTap: _isLoading ? null : () => _changePhase(PeriodPhase.closed),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               // Stats section
               Card(
                 child: Padding(
@@ -272,7 +585,7 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'İstatistikler',
+                        'Istatistikler',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 12),
@@ -282,12 +595,12 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
                           _buildStatItem(
                             Icons.people,
                             '${_community!.stats.memberCount}',
-                            'Üye',
+                            'Uye',
                           ),
                           _buildStatItem(
                             Icons.calendar_today,
-                            '${_community!.stats.weekCount}',
-                            'Hafta',
+                            '${_community!.stats.periodCount}',
+                            'Donem',
                           ),
                           _buildStatItem(
                             Icons.article,
@@ -302,11 +615,78 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Join type card (v8.0)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.group_add, color: AppTheme.primaryColor),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Katilim Tipi',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ...JoinType.values.map((type) => RadioListTile<JoinType>(
+                            title: Text(type.label),
+                            subtitle: Text(type.description),
+                            value: type,
+                            groupValue: _community!.joinType,
+                            onChanged: _isLoading
+                                ? null
+                                : (value) {
+                                    if (value != null) {
+                                      _changeJoinType(value);
+                                    }
+                                  },
+                            contentPadding: EdgeInsets.zero,
+                          )),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Rules card (v8.0)
+              Card(
+                child: ListTile(
+                  leading: Icon(Icons.rule, color: Colors.orange.shade600),
+                  title: const Text('Topluluk Kurallari'),
+                  subtitle: Text(
+                    _community!.rules?.isNotEmpty == true
+                        ? 'Kurallar tanimlanmis'
+                        : 'Henuz kural tanimlanmamis',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    final result = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CommunityRulesScreen(
+                          communityId: widget.communityId,
+                          initialRules: _community!.rules,
+                        ),
+                      ),
+                    );
+                    if (result == true) {
+                      await _loadCommunity();
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+
               // Members management
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.people),
-                  title: const Text('Üyeleri Yönet'),
+                  title: const Text('Uyeleri Yonet'),
                   subtitle: StreamBuilder<int>(
                     stream: _communityService.getPendingMemberCount(widget.communityId),
                     builder: (context, snapshot) {
@@ -367,13 +747,13 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Create new week button
+              // Create new period button
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: _isLoading ? null : _createNewWeek,
+                  onPressed: _isLoading ? null : _createNewPeriod,
                   icon: const Icon(Icons.add),
-                  label: const Text('Yeni Hafta Başlat'),
+                  label: const Text('Yeni Donem Baslat'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -463,6 +843,73 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
         ),
       ],
     );
+  }
+}
+
+/// Phase button widget for phase control
+class _PhaseButton extends StatelessWidget {
+  final PeriodPhase phase;
+  final PeriodPhase currentPhase;
+  final VoidCallback? onTap;
+
+  const _PhaseButton({
+    required this.phase,
+    required this.currentPhase,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = phase == currentPhase;
+    final phaseInfo = _getPhaseInfo();
+
+    return Material(
+      color: isActive ? phaseInfo.color.withValues(alpha: 0.15) : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isActive ? phaseInfo.color : Colors.grey.shade300,
+              width: isActive ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                phaseInfo.icon,
+                color: isActive ? phaseInfo.color : Colors.grey,
+                size: 24,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                phaseInfo.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                  color: isActive ? phaseInfo.color : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  ({IconData icon, String label, Color color}) _getPhaseInfo() {
+    switch (phase) {
+      case PeriodPhase.voting:
+        return (icon: Icons.how_to_vote, label: 'Oylama', color: Colors.blue);
+      case PeriodPhase.discussion:
+        return (icon: Icons.forum, label: 'Tartisma', color: Colors.green);
+      case PeriodPhase.closed:
+        return (icon: Icons.lock, label: 'Kapali', color: Colors.grey);
+    }
   }
 }
 

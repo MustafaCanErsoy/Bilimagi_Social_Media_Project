@@ -23,6 +23,7 @@ class _CommunityCreateScreenState extends State<CommunityCreateScreen> {
   String _selectedCategory = CommunityCategory.physics;
   String? _selectedEmoji;
   int _selectedColorIndex = 0;
+  JoinType _selectedJoinType = JoinType.approval;
   bool _isLoading = false;
 
   @override
@@ -48,6 +49,7 @@ class _CommunityCreateScreenState extends State<CommunityCreateScreen> {
             : null,
         iconEmoji: _selectedEmoji,
         colorIndex: _selectedColorIndex,
+        joinType: _selectedJoinType,
       );
 
       if (mounted) {
@@ -173,19 +175,39 @@ class _CommunityCreateScreenState extends State<CommunityCreateScreen> {
                 TextFormField(
                   controller: _customCategoryController,
                   decoration: const InputDecoration(
-                    labelText: 'Özel Kategori',
-                    hintText: 'Kategori adını girin',
+                    labelText: 'Ozel Kategori',
+                    hintText: 'Kategori adini girin',
                   ),
                   validator: (value) {
                     if (_selectedCategory == CommunityCategory.other &&
                         (value == null || value.trim().isEmpty)) {
-                      return 'Kategori adı giriniz';
+                      return 'Kategori adi giriniz';
                     }
                     return null;
                   },
                 ),
               ],
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+
+              // Join type selection (v8.0)
+              Text(
+                'Katilim Tipi',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              ...JoinType.values.map((type) => RadioListTile<JoinType>(
+                    title: Text(type.label),
+                    subtitle: Text(type.description),
+                    value: type,
+                    groupValue: _selectedJoinType,
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _selectedJoinType = value);
+                      }
+                    },
+                    contentPadding: EdgeInsets.zero,
+                  )),
+              const SizedBox(height: 16),
 
               // Create button
               SizedBox(

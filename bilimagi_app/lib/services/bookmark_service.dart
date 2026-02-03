@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/article.dart';
-import '../models/week.dart';
+import '../models/period.dart';
 
 class SavedArticle {
   final String articleId;
-  final String weekId;
+  final String periodId;
   final String communityId;
   final String title;
   final String summary;
@@ -13,7 +13,7 @@ class SavedArticle {
 
   SavedArticle({
     required this.articleId,
-    required this.weekId,
+    required this.periodId,
     required this.communityId,
     required this.title,
     required this.summary,
@@ -24,7 +24,8 @@ class SavedArticle {
     final data = doc.data() as Map<String, dynamic>;
     return SavedArticle(
       articleId: data['articleId'] ?? '',
-      weekId: data['weekId'] ?? '',
+      // Support both old 'weekId' and new 'periodId'
+      periodId: data['periodId'] ?? data['weekId'] ?? '',
       communityId: data['communityId'] ?? '',
       title: data['title'] ?? '',
       summary: data['summary'] ?? '',
@@ -40,7 +41,7 @@ class BookmarkService {
   /// Save an article
   Future<void> saveArticle({
     required Article article,
-    required Week week,
+    required Period period,
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw Exception('User not logged in');
@@ -52,8 +53,8 @@ class BookmarkService {
         .doc(article.id)
         .set({
       'articleId': article.id,
-      'weekId': week.id,
-      'communityId': week.communityId,
+      'periodId': period.id,
+      'communityId': period.communityId,
       'title': article.title,
       'summary': article.summary,
       'savedAt': FieldValue.serverTimestamp(),

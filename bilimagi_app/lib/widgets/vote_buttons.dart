@@ -5,13 +5,13 @@ import '../core/theme.dart';
 
 /// Vote buttons widget for comments (upvote/downvote)
 class VoteButtons extends StatelessWidget {
-  final String weekId;
+  final String periodId;
   final String articleId;
   final Comment comment;
 
   const VoteButtons({
     super.key,
-    required this.weekId,
+    required this.periodId,
     required this.articleId,
     required this.comment,
   });
@@ -22,7 +22,7 @@ class VoteButtons extends StatelessWidget {
 
     return StreamBuilder<VoteType?>(
       stream: voteService.getUserVote(
-        weekId: weekId,
+        periodId: periodId,
         articleId: articleId,
         commentId: comment.id,
       ),
@@ -38,7 +38,7 @@ class VoteButtons extends StatelessWidget {
             InkWell(
               onTap: () {
                 voteService.voteComment(
-                  weekId: weekId,
+                  periodId: periodId,
                   articleId: articleId,
                   commentId: comment.id,
                   type: VoteType.up,
@@ -71,7 +71,7 @@ class VoteButtons extends StatelessWidget {
             InkWell(
               onTap: () {
                 voteService.voteComment(
-                  weekId: weekId,
+                  periodId: periodId,
                   articleId: articleId,
                   commentId: comment.id,
                   type: VoteType.down,

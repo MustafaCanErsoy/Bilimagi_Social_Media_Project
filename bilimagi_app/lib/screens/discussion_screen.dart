@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../models/week.dart';
+import '../models/period.dart';
 import '../models/article.dart';
 import '../models/comment_tree.dart';
-import '../services/week_service.dart';
+import '../services/period_service.dart';
 import '../services/bookmark_service.dart';
 import '../services/report_service.dart';
 import '../core/theme.dart';
@@ -15,12 +15,12 @@ import '../widgets/mention_autocomplete.dart';
 import '../widgets/report_dialog.dart';
 
 class DiscussionScreen extends StatefulWidget {
-  final Week week;
+  final Period period;
   final Article article;
 
   const DiscussionScreen({
     super.key,
-    required this.week,
+    required this.period,
     required this.article,
   });
 
@@ -29,7 +29,7 @@ class DiscussionScreen extends StatefulWidget {
 }
 
 class _DiscussionScreenState extends State<DiscussionScreen> {
-  final _weekService = WeekService();
+  final _periodService = PeriodService();
   final _reportService = ReportService();
   final _commentController = TextEditingController();
   late MentionAutocompleteController _mentionController;
@@ -65,8 +65,8 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
 
     try {
       await _reportService.reportComment(
-        communityId: widget.week.communityId,
-        weekId: widget.week.id,
+        communityId: widget.period.communityId,
+        periodId: widget.period.id,
         articleId: widget.article.id,
         commentId: comment.id,
         commentUid: comment.uid,
@@ -102,8 +102,8 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
       // Convert @displayName to @[displayName](userId) format
       final formattedText = _mentionController.convertToStorageFormat(text);
 
-      await _weekService.addComment(
-        widget.week.id,
+      await _periodService.addComment(
+        widget.period.id,
         widget.article.id,
         formattedText,
       );
@@ -152,7 +152,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
                     } else {
                       await bookmarkService.saveArticle(
                         article: widget.article,
-                        week: widget.week,
+                        period: widget.period,
                       );
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -176,11 +176,11 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
       body: Column(
         children: [
           // Instagram-style article post card
-          ArticlePostCard(week: widget.week, article: widget.article),
+          ArticlePostCard(period: widget.period, article: widget.article),
           // Comments section
           Expanded(child: _buildCommentsSection()),
           // Comment input (only in discussion phase)
-          if (widget.week.phase == WeekPhase.discussion) _buildCommentInput(),
+          if (widget.period.phase == PeriodPhase.discussion) _buildCommentInput(),
         ],
       ),
     );
@@ -188,7 +188,7 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
 
   Widget _buildCommentsSection() {
     return StreamBuilder<List<Comment>>(
-      stream: _weekService.getComments(widget.week.id, widget.article.id),
+      stream: _periodService.getComments(widget.period.id, widget.article.id),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -236,32 +236,32 @@ class _DiscussionScreenState extends State<DiscussionScreen> {
                       final isOwnComment = commentNode.comment.uid == currentUid;
                       return CommentCard(
                         commentNode: commentNode,
-                        week: widget.week,
+                        period: widget.period,
                         articleId: widget.article.id,
                         onReply: () => DiscussionDialogs.showReplyDialog(
                           context: context,
                           parentComment: commentNode.comment,
-                          weekId: widget.week.id,
+                          periodId: widget.period.id,
                           articleId: widget.article.id,
-                          weekService: _weekService,
+                          periodService: _periodService,
                         ),
                         isOwnComment: isOwnComment,
                         onEdit: isOwnComment
                             ? () => DiscussionDialogs.showEditDialog(
                                   context: context,
                                   comment: commentNode.comment,
-                                  weekId: widget.week.id,
+                                  periodId: widget.period.id,
                                   articleId: widget.article.id,
-                                  weekService: _weekService,
+                                  periodService: _periodService,
                                 )
                             : null,
                         onDelete: isOwnComment
                             ? () => DiscussionDialogs.showDeleteDialog(
                                   context: context,
                                   comment: commentNode.comment,
-                                  weekId: widget.week.id,
+                                  periodId: widget.period.id,
                                   articleId: widget.article.id,
-                                  weekService: _weekService,
+                                  periodService: _periodService,
                                 )
                             : null,
                         onReport: !isOwnComment

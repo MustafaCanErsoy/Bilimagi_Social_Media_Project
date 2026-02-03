@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/bookmark_service.dart';
-import '../services/week_service.dart';
+import '../services/period_service.dart';
 import '../core/theme.dart';
 import 'discussion_screen.dart';
 
@@ -81,7 +81,7 @@ class _SavedArticleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final weekService = WeekService();
+    final periodService = PeriodService();
     final bookmarkService = BookmarkService();
 
     return Dismissible(
@@ -103,31 +103,31 @@ class _SavedArticleCard extends StatelessWidget {
       onDismissed: (_) {
         bookmarkService.unsaveArticle(saved.articleId);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Kayıt kaldırıldı')),
+          const SnackBar(content: Text('Kayit kaldirildi')),
         );
       },
       child: Card(
         margin: const EdgeInsets.only(bottom: 12),
         child: InkWell(
           onTap: () async {
-            // Get week and article to navigate to discussion
+            // Get period and article to navigate to discussion
             try {
-              final week = await weekService.getWeekOnce(saved.weekId);
-              if (week == null) {
+              final period = await periodService.getPeriodOnce(saved.periodId);
+              if (period == null) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Hafta bulunamadı')),
+                    const SnackBar(content: Text('Donem bulunamadi')),
                   );
                 }
                 return;
               }
 
               final article =
-                  await weekService.getArticleOnce(saved.weekId, saved.articleId);
+                  await periodService.getArticleOnce(saved.periodId, saved.articleId);
               if (article == null) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Makale bulunamadı')),
+                    const SnackBar(content: Text('Makale bulunamadi')),
                   );
                 }
                 return;
@@ -138,7 +138,7 @@ class _SavedArticleCard extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (context) => DiscussionScreen(
-                      week: week,
+                      period: period,
                       article: article,
                     ),
                   ),

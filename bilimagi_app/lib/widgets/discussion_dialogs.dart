@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/week_service.dart';
+import '../services/period_service.dart';
 import '../core/theme.dart';
 
 /// Dialog utilities for discussion screen
@@ -8,9 +8,9 @@ class DiscussionDialogs {
   static void showReplyDialog({
     required BuildContext context,
     required Comment parentComment,
-    required String weekId,
+    required String periodId,
     required String articleId,
-    required WeekService weekService,
+    required PeriodService periodService,
   }) {
     final replyController = TextEditingController();
     bool sending = false;
@@ -97,8 +97,8 @@ class DiscussionDialogs {
                           setState(() => sending = true);
 
                           try {
-                            await weekService.addReply(
-                              weekId,
+                            await periodService.addReply(
+                              periodId,
                               articleId,
                               parentComment.id,
                               parentComment.depth,
@@ -147,9 +147,9 @@ class DiscussionDialogs {
   static void showEditDialog({
     required BuildContext context,
     required Comment comment,
-    required String weekId,
+    required String periodId,
     required String articleId,
-    required WeekService weekService,
+    required PeriodService periodService,
   }) {
     final editController = TextEditingController(text: comment.text);
     bool saving = false;
@@ -216,8 +216,8 @@ class DiscussionDialogs {
                           setState(() => saving = true);
 
                           try {
-                            await weekService.editComment(
-                              weekId,
+                            await periodService.editComment(
+                              periodId,
                               articleId,
                               comment.id,
                               newText,
@@ -265,9 +265,9 @@ class DiscussionDialogs {
   static void showDeleteDialog({
     required BuildContext context,
     required Comment comment,
-    required String weekId,
+    required String periodId,
     required String articleId,
-    required WeekService weekService,
+    required PeriodService periodService,
   }) {
     showDialog(
       context: context,
@@ -285,8 +285,8 @@ class DiscussionDialogs {
             onPressed: () async {
               Navigator.pop(context);
               try {
-                await weekService.deleteComment(
-                  weekId,
+                await periodService.deleteComment(
+                  periodId,
                   articleId,
                   comment.id,
                 );

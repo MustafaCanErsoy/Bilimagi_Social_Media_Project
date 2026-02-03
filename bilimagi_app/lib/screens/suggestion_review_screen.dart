@@ -6,11 +6,11 @@ import '../widgets/suggestion_card.dart';
 
 /// Screen for reviewing article suggestions (moderator/owner only)
 class SuggestionReviewScreen extends StatefulWidget {
-  final String weekId;
+  final String periodId;
 
   const SuggestionReviewScreen({
     super.key,
-    required this.weekId,
+    required this.periodId,
   });
 
   @override
@@ -61,7 +61,7 @@ class _SuggestionReviewScreenState extends State<SuggestionReviewScreen>
     if (confirmed != true) return;
 
     try {
-      await _suggestionService.approveSuggestion(widget.weekId, suggestion.id);
+      await _suggestionService.approveSuggestion(widget.periodId, suggestion.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Öneri onaylandı ve makaleye dönüştürüldü')),
@@ -117,7 +117,7 @@ class _SuggestionReviewScreenState extends State<SuggestionReviewScreen>
 
     try {
       await _suggestionService.rejectSuggestion(
-        widget.weekId,
+        widget.periodId,
         suggestion.id,
         reason: result.isNotEmpty ? result : null,
       );
@@ -144,7 +144,7 @@ class _SuggestionReviewScreenState extends State<SuggestionReviewScreen>
           controller: _tabController,
           tabs: [
             StreamBuilder<int>(
-              stream: _suggestionService.getPendingSuggestionCount(widget.weekId),
+              stream: _suggestionService.getPendingSuggestionCount(widget.periodId),
               builder: (context, snapshot) {
                 final count = snapshot.data ?? 0;
                 return Tab(
@@ -182,7 +182,7 @@ class _SuggestionReviewScreenState extends State<SuggestionReviewScreen>
 
   Widget _buildSuggestionList(SuggestionStatus status, {bool isReviewer = false}) {
     return StreamBuilder<List<ArticleSuggestion>>(
-      stream: _suggestionService.getSuggestions(widget.weekId),
+      stream: _suggestionService.getSuggestions(widget.periodId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

@@ -53,7 +53,7 @@ class UserActivity {
   final ActivityTargetType targetType;
   final String targetId;
   final String? targetName;
-  final String? weekId;
+  final String? periodId;
   final String? communityId;
   final String? communityName;
   final String? preview;
@@ -68,7 +68,7 @@ class UserActivity {
     required this.targetType,
     required this.targetId,
     this.targetName,
-    this.weekId,
+    this.periodId,
     this.communityId,
     this.communityName,
     this.preview,
@@ -86,7 +86,7 @@ class UserActivity {
       targetType: ActivityTargetType.fromString(data['targetType'] ?? 'article'),
       targetId: data['targetId'] ?? '',
       targetName: data['targetName'],
-      weekId: data['weekId'],
+      periodId: data['periodId'],
       communityId: data['communityId'],
       communityName: data['communityName'],
       preview: data['preview'],
@@ -103,7 +103,7 @@ class UserActivity {
       'targetType': targetType.name,
       'targetId': targetId,
       'targetName': targetName,
-      'weekId': weekId,
+      'periodId': periodId,
       'communityId': communityId,
       'communityName': communityName,
       'preview': preview,

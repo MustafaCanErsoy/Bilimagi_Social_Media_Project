@@ -4,11 +4,11 @@ import '../services/suggestion_service.dart';
 
 /// Screen for submitting article suggestions
 class SuggestionScreen extends StatefulWidget {
-  final String weekId;
+  final String periodId;
 
   const SuggestionScreen({
     super.key,
-    required this.weekId,
+    required this.periodId,
   });
 
   @override
@@ -48,7 +48,7 @@ class _SuggestionScreenState extends State<SuggestionScreen> {
 
     try {
       await _suggestionService.submitSuggestion(
-        weekId: widget.weekId,
+        periodId: widget.periodId,
         title: _titleController.text.trim(),
         summary: _summaryController.text.trim(),
         link: _linkController.text.trim(),

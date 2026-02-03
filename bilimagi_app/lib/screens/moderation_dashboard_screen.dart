@@ -316,7 +316,7 @@ class _ReportCard extends StatelessWidget {
   }
 
   Future<void> _hideCommentAndReview(BuildContext context) async {
-    if (report.weekId == null || report.articleId == null) {
+    if (report.periodId == null || report.articleId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Yorum bilgisi eksik')),
       );
@@ -327,7 +327,7 @@ class _ReportCard extends StatelessWidget {
       // Hide the comment
       await moderationService.hideComment(
         communityId: communityId,
-        weekId: report.weekId!,
+        periodId: report.periodId!,
         articleId: report.articleId!,
         commentId: report.targetId,
         reason: 'Rapor sebebi: ${ReportReason.getLabel(report.reason)}',

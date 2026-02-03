@@ -12,7 +12,7 @@ class ReportService {
   /// Report a comment
   Future<void> reportComment({
     required String communityId,
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String commentId,
     required String commentUid,
@@ -52,7 +52,7 @@ class ReportService {
       'targetId': commentId,
       'targetUid': commentUid,
       'targetDisplayName': commentDisplayName,
-      'weekId': weekId,
+      'periodId': periodId,
       'articleId': articleId,
       'reason': reason,
       'details': details,

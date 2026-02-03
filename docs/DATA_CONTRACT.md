@@ -1,7 +1,7 @@
 # Bilimagi Data Contract
 
-**Version:** v7.2
-**Last Updated:** 2026-02-01
+**Version:** v9.0
+**Last Updated:** 2026-02-03
 
 Bu dosya Firestore veritabanı şemasını ve veri akışlarını detaylı şekilde açıklar.
 
@@ -22,7 +22,7 @@ firestore/
 │   ├── bans/{bannedUid}/                     [v6.0]
 │   ├── moderationLogs/{logId}/               [v6.0]
 │   └── reports/{reportId}/                   [v6.1]
-└── weeks/{weekId}/
+└── periods/{periodId}/                       [v9.0 - eskiden weeks]
     ├── articles/{articleId}/
     │   ├── votes/{uid}/
     │   └── comments/{commentId}/
@@ -90,7 +90,7 @@ Kullanıcı bildirimleri.
 | `read` | boolean | Okundu mu? |
 | `createdAt` | timestamp | Oluşturulma tarihi |
 | `targetId` | string? | Hedef yorum ID'si |
-| `weekId` | string? | İlgili hafta ID'si |
+| `periodId` | string? | İlgili dönem ID'si [v9.0] |
 | `articleId` | string? | İlgili makale ID'si |
 | `preview` | string? | Önizleme metni |
 | `communityId` | string? | İlgili topluluk ID'si |
@@ -121,7 +121,7 @@ Kaydedilen makaleler (denormalize).
 |------|-----|----------|
 | `title` | string | Makale başlığı |
 | `summary` | string | Makale özeti |
-| `weekId` | string | Hafta ID'si |
+| `periodId` | string | Dönem ID'si [v9.0] |
 | `savedAt` | timestamp | Kaydetme tarihi |
 
 ---
@@ -138,7 +138,7 @@ Kullanıcı aktiviteleri (takip akışı için).
 | `targetType` | string | Hedef türü (aşağıda) |
 | `targetId` | string | Hedef ID'si |
 | `targetName` | string? | Hedef adı |
-| `weekId` | string? | İlgili hafta ID'si |
+| `periodId` | string? | İlgili dönem ID'si [v9.0] |
 | `communityId` | string? | İlgili topluluk ID'si |
 | `communityName` | string? | Topluluk adı |
 | `preview` | string? | Önizleme metni |
@@ -171,11 +171,14 @@ Topluluk bilgileri.
 | `name` | string | Topluluk adı |
 | `description` | string | Açıklama |
 | `ownerUid` | string | Sahip kullanıcı ID'si |
-| `currentWeekId` | string? | Aktif hafta ID'si |
+| `currentPeriodId` | string? | Aktif dönem ID'si [v9.0] |
 | `category` | string | Kategori kodu |
 | `customCategory` | string? | Özel kategori adı |
 | `iconEmoji` | string? | Simge emoji |
 | `colorIndex` | number | Renk indeksi 0-7 |
+| `coverPhotoURL` | string? | Kapak fotoğrafı URL'i [v8.0] |
+| `rules` | string? | Topluluk kuralları (Markdown) [v8.0] |
+| `joinType` | string | "open" \| "approval" [v8.0] |
 | `createdAt` | timestamp | Oluşturulma tarihi |
 | `isPublic` | boolean | Herkese açık mı? |
 | `isDeleted` | boolean | Silindi mi? (soft delete) [v6.0] |
@@ -209,7 +212,7 @@ Topluluk bilgileri.
 | Alan | Tip | Açıklama |
 |------|-----|----------|
 | `memberCount` | number | Üye sayısı |
-| `weekCount` | number | Toplam hafta sayısı |
+| `periodCount` | number | Toplam dönem sayısı [v9.0] |
 | `totalArticles` | number | Toplam makale sayısı |
 
 ---
@@ -293,7 +296,7 @@ Kullanıcı raporları.
 | `targetId` | string | Hedef ID'si (commentId veya uid) |
 | `targetUid` | string | Hedef kullanıcı ID'si |
 | `targetDisplayName` | string? | Hedef kullanıcı adı |
-| `weekId` | string? | İlgili hafta ID'si |
+| `periodId` | string? | İlgili dönem ID'si [v9.0] |
 | `articleId` | string? | İlgili makale ID'si |
 | `reason` | string | Rapor sebebi (aşağıda) |
 | `details` | string? | Ek detaylar |
@@ -314,34 +317,50 @@ Kullanıcı raporları.
 
 ---
 
-## 3. Weeks Koleksiyonu
+## 3. Periods Koleksiyonu [v9.0]
 
-### weeks/{weekId}
-Haftalık oylama/tartışma döngüsü.
+### periods/{periodId}
+Esnek tartışma dönemleri (eski: weeks).
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
 | `communityId` | string | Ait olduğu topluluk |
+| `title` | string | Dönem başlığı (örn: "Ocak 2026 Tartışması") |
+| `description` | string? | Dönem açıklaması |
 | `phase` | string | "voting" \| "discussion" \| "closed" |
+| `startDate` | timestamp? | Başlangıç tarihi (opsiyonel) |
+| `endDate` | timestamp? | Bitiş tarihi (opsiyonel) |
+| `minVotesForDiscussion` | number | Tartışma için minimum oy (varsayılan: 1) |
 | `createdAt` | timestamp | Oluşturulma tarihi |
-| `lastVoteAt` | timestamp? | Son oy zamanı (stream trigger) |
+| `phaseChangedAt` | timestamp? | Son faz değişikliği zamanı |
+| `phaseChangedByUid` | string? | Faz değiştiren kullanıcı |
 
 **Faz Akışı:**
 ```
 voting → discussion → closed
-   ↑_________|  (yeni hafta ile)
+   ↑_________|  (yeni dönem ile)
 ```
+
+**v9.0 Yenilikler:**
+- Esnek dönemler (takvime bağlı değil)
+- Başlık ve açıklama desteği
+- minVotesForDiscussion ile tartışma eşiği
+- Çoklu makale tartışması
 
 ---
 
-### weeks/{weekId}/articles/{articleId}
-Haftalık makaleler.
+### periods/{periodId}/articles/{articleId}
+Dönem makaleleri.
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
 | `title` | string | Makale başlığı |
 | `summary` | string | Özet |
 | `link` | string | Makale URL'i |
+| `heroImageURL` | string? | Hero görsel URL'i [v8.0] |
+| `content` | string? | Makale içeriği (Markdown) [v8.0] |
+| `voteCount` | number | Toplam oy sayısı (cached) |
+| `isEligibleForDiscussion` | boolean | Tartışmaya uygun mu? [v9.0] |
 | `suggestedByUid` | string? | Öneren kullanıcı |
 | `suggestedByDisplayName` | string? | Öneren ismi |
 | `suggestionId` | string? | Kaynak öneri ID'si |
@@ -349,18 +368,21 @@ Haftalık makaleler.
 
 ---
 
-### weeks/{weekId}/articles/{articleId}/votes/{uid}
-Makale oyları.
+### periods/{periodId}/articles/{articleId}/votes/{uid} [v9.0]
+Makale oyları (çoklu oylama destekli).
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
-| `choice` | string | Seçilen makale ID'si |
-| `weekId` | string | Hafta ID'si |
-| `updatedAt` | timestamp | Oy zamanı |
+| `votedAt` | timestamp | Oy zamanı |
+
+**v9.0 Değişiklikler:**
+- Artık her makale için ayrı oy kaydı
+- Kullanıcı birden fazla makaleye oy verebilir (toggle)
+- `choice` alanı kaldırıldı
 
 ---
 
-### weeks/{weekId}/articles/{articleId}/comments/{commentId}
+### periods/{periodId}/articles/{articleId}/comments/{commentId}
 Makale yorumları.
 
 | Alan | Tip | Açıklama |
@@ -378,6 +400,9 @@ Makale yorumları.
 | `isEdited` | boolean? | Düzenlendi mi? |
 | `editedAt` | timestamp? | Düzenleme zamanı |
 | `isDeleted` | boolean? | Silindi mi? (soft delete) |
+| `isPinned` | boolean? | Sabitlendi mi? [v8.0] |
+| `pinnedByUid` | string? | Sabitleyen kullanıcı [v8.0] |
+| `pinnedAt` | timestamp? | Sabitleme zamanı [v8.0] |
 | `isHidden` | boolean? | Moderatör tarafından gizlendi mi? [v6.0] |
 | `hiddenByUid` | string? | Gizleyen moderatör ID'si [v6.0] |
 | `hiddenAt` | timestamp? | Gizlenme zamanı [v6.0] |
@@ -390,7 +415,7 @@ Makale yorumları.
 
 ---
 
-### weeks/{weekId}/articles/{articleId}/comments/{commentId}/votes/{uid}
+### periods/{periodId}/articles/{articleId}/comments/{commentId}/votes/{uid}
 Yorum oyları.
 
 | Alan | Tip | Açıklama |
@@ -400,7 +425,7 @@ Yorum oyları.
 
 ---
 
-### weeks/{weekId}/suggestions/{suggestionId}
+### periods/{periodId}/suggestions/{suggestionId}
 Makale önerileri.
 
 | Alan | Tip | Açıklama |
@@ -419,7 +444,7 @@ Makale önerileri.
 
 ---
 
-### weeks/{weekId}/suggestions/{suggestionId}/interests/{uid}
+### periods/{periodId}/suggestions/{suggestionId}/interests/{uid}
 Öneri ilgi oyları.
 
 | Alan | Tip | Açıklama |
@@ -443,24 +468,41 @@ collection('communities/{id}/members')
   .where('status', isEqualTo: 'pending')
 ```
 
-### Aktif Tartışmalar (Home Feed)
+### Aktif Tartışmalar (Home Feed) [v9.0]
 ```dart
-collection('weeks')
+collection('periods')
   .where('phase', isEqualTo: 'discussion')
   .limit(20)
 // + client-side: community.isDeleted == false filtresi
 ```
 
-### Oylama Fazındaki Haftalar
+### Oylama Fazındaki Dönemler [v9.0]
 ```dart
-collection('weeks')
+collection('periods')
   .where('phase', isEqualTo: 'voting')
 // + client-side: community.isDeleted == false filtresi
 ```
 
+### Kullanıcının Oyladığı Makaleler (Dönem içinde) [v9.0]
+```dart
+collection('periods/{periodId}/articles')
+  .get()
+// Her makale için:
+collection('periods/{periodId}/articles/{articleId}/votes')
+  .doc(uid)
+  .get()
+// Set<String> olarak döndür
+```
+
+### Tartışmaya Uygun Makaleler [v9.0]
+```dart
+collection('periods/{periodId}/articles')
+  .where('isEligibleForDiscussion', isEqualTo: true)
+```
+
 ### Bekleyen Öneriler
 ```dart
-collection('weeks/{weekId}/suggestions')
+collection('periods/{periodId}/suggestions')
   .where('status', isEqualTo: 'pending')
 ```
 
@@ -555,18 +597,25 @@ match /communities/{communityId}/reports/{reportId} {
   allow update: if isOwnerOrMod(communityId);
 }
 
-// Öneriler
-match /weeks/{weekId}/suggestions/{suggestionId} {
+// Dönemler [v9.0]
+match /periods/{periodId} {
   allow read: if request.auth != null;
-  allow create: if isMember(weekId);
-  allow update: if isOwnerOrMod(weekId);
+  allow create: if isOwnerOrMod(periodId);
+  allow update: if isOwnerOrMod(periodId);
+}
+
+// Öneriler
+match /periods/{periodId}/suggestions/{suggestionId} {
+  allow read: if request.auth != null;
+  allow create: if isMember(periodId);
+  allow update: if isOwnerOrMod(periodId);
 }
 
 // Yorumlar (gizleme için) [v6.0]
-match /weeks/{weekId}/articles/{articleId}/comments/{commentId} {
+match /periods/{periodId}/articles/{articleId}/comments/{commentId} {
   allow read: if request.auth != null;
   allow create: if request.auth != null;
-  allow update: if request.auth.uid == resource.data.uid || isOwnerOrMod(weekId);
+  allow update: if request.auth.uid == resource.data.uid || isOwnerOrMod(periodId);
 }
 ```
 
@@ -600,6 +649,36 @@ Kullanıcı                    Sistem                     Owner/Mod
  |                              |-- Article oluştur         |
  |                              |-- stats.totalArticles++   |
  | <-- Bildirim --------------- |                           |
+```
+
+### Çoklu Oylama Akışı [v9.0]
+```
+Kullanıcı                    Sistem
+    |                          |
+    |-- Makale 1'e oy ver ---> |
+    |                          |-- votes/{uid} oluştur
+    |                          |-- voteCount++
+    |                          |
+    |-- Makale 2'ye oy ver --> |
+    |                          |-- votes/{uid} oluştur
+    |                          |-- voteCount++
+    |                          |
+    |-- Makale 1 oyu geri al-> |
+    |                          |-- votes/{uid} sil
+    |                          |-- voteCount--
+```
+
+### Faz Geçişi Akışı [v9.0]
+```
+Moderatör                    Sistem
+    |                          |
+    |-- Tartışma fazına geç -> |
+    |                          |-- phase = 'discussion'
+    |                          |-- Her makale için:
+    |                          |   if voteCount >= minVotes:
+    |                          |     isEligibleForDiscussion = true
+    |                          |-- phaseChangedAt = now
+    |                          |-- phaseChangedByUid = mod
 ```
 
 ### Yorum Gizleme Akışı [v6.0]
@@ -638,6 +717,8 @@ Firestore composite index gerektiren sorgular:
 | `activities` | `uid`, `createdAt` | DESC |
 | `moderationLogs` | `communityId`, `createdAt` | DESC |
 | `bans` | `communityId`, `bannedAt` | DESC |
+| `periods` | `phase`, `createdAt` | DESC |
+| `articles` | `isEligibleForDiscussion`, `voteCount` | DESC |
 
 ---
 
@@ -678,9 +759,9 @@ enum MemberStatus {
 }
 ```
 
-### WeekPhase
+### PeriodPhase [v9.0]
 ```dart
-enum WeekPhase {
+enum PeriodPhase {
   voting,
   discussion,
   closed,
@@ -764,6 +845,14 @@ class CommunityCategory {
 }
 ```
 
+### JoinType [v8.0]
+```dart
+enum JoinType {
+  open,      // Onaysız katılım
+  approval,  // Onay gerekli
+}
+```
+
 ### InterestCategory [v7.2]
 ```dart
 class InterestCategory {
@@ -790,9 +879,9 @@ class InterestCategory {
 
 ---
 
-## Firebase Storage [v7.2]
+## Firebase Storage
 
-### Profil Fotograflari
+### Profil Fotograflari [v7.2]
 **Path:** `users/{uid}/profile_photo.jpg`
 
 | Metadata | Deger |
@@ -802,11 +891,26 @@ class InterestCategory {
 | maxHeight | 512px |
 | quality | 85% |
 
-**Islemler:**
-- `uploadProfilePhoto(Uint8List bytes)` - Fotograf yukle, URL dondur
-- `deleteProfilePhoto()` - Fotografı sil
-- `getProfilePhotoURL()` - URL'i al
+### Topluluk Kapak Fotograflari [v8.0]
+**Path:** `communities/{communityId}/cover_photo.jpg`
+
+| Metadata | Deger |
+|----------|-------|
+| contentType | image/jpeg |
+| maxWidth | 1200px |
+| maxHeight | 600px |
+| quality | 85% |
+
+### Makale Hero Gorselleri [v8.0]
+**Path:** `periods/{periodId}/articles/{articleId}/hero_image.jpg`
+
+| Metadata | Deger |
+|----------|-------|
+| contentType | image/jpeg |
+| maxWidth | 1200px |
+| maxHeight | 675px |
+| quality | 85% |
 
 ---
 
-**Son Guncelleme:** 2026-02-01 (v7.2)
+**Son Guncelleme:** 2026-02-03 (v9.0 - Period Sistemi)

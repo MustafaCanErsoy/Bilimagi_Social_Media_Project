@@ -21,6 +21,8 @@ class CommunityService {
     String? customCategory,
     String? iconEmoji,
     int colorIndex = 0,
+    JoinType joinType = JoinType.approval,
+    String? coverPhotoURL,
   }) async {
     final uid = _currentUid;
     if (uid == null) throw Exception('User not logged in');
@@ -41,6 +43,8 @@ class CommunityService {
       createdAt: DateTime.now(),
       isPublic: true,
       stats: const CommunityStats(memberCount: 1),
+      joinType: joinType,
+      coverPhotoURL: coverPhotoURL,
     );
 
     final batch = _db.batch();
@@ -72,6 +76,11 @@ class CommunityService {
     String? customCategory,
     String? iconEmoji,
     int? colorIndex,
+    // v8.0 fields
+    JoinType? joinType,
+    String? coverPhotoURL,
+    String? rules,
+    bool clearCoverPhoto = false,
   }) async {
     final uid = _currentUid;
     if (uid == null) throw Exception('User not logged in');
@@ -89,6 +98,11 @@ class CommunityService {
     if (customCategory != null) updates['customCategory'] = customCategory;
     if (iconEmoji != null) updates['iconEmoji'] = iconEmoji;
     if (colorIndex != null) updates['colorIndex'] = colorIndex;
+    // v8.0
+    if (joinType != null) updates['joinType'] = joinType.name;
+    if (coverPhotoURL != null) updates['coverPhotoURL'] = coverPhotoURL;
+    if (clearCoverPhoto) updates['coverPhotoURL'] = FieldValue.delete();
+    if (rules != null) updates['rules'] = rules;
 
     if (updates.isNotEmpty) {
       await _db.collection('communities').doc(communityId).update(updates);
@@ -224,7 +238,7 @@ class CommunityService {
 
   // ==================== MEMBERSHIP OPERATIONS ====================
 
-  /// Request membership (creates pending entry)
+  /// Request membership (creates pending or approved entry based on JoinType)
   Future<void> requestMembership(String communityId) async {
     final uid = _currentUid;
     if (uid == null) throw Exception('User not logged in');
@@ -241,17 +255,46 @@ class CommunityService {
       if (status == 'pending') throw Exception('Request already pending');
     }
 
-    await memberRef.set(CommunityMembership(
-      communityId: communityId,
-      uid: uid,
-      displayName: displayName,
-      role: MemberRole.member,
-      status: MemberStatus.pending,
-      requestedAt: DateTime.now(),
-    ).toFirestore());
+    // Check community join type (v8.0)
+    final community = await getCommunityOnce(communityId);
+    if (community == null) throw Exception('Community not found');
 
-    // Notify owner and moderators
-    await _notifyMembershipRequest(communityId, displayName);
+    final isOpenJoin = community.joinType == JoinType.open;
+
+    if (isOpenJoin) {
+      // Direct join without approval
+      final batch = _db.batch();
+
+      batch.set(memberRef, CommunityMembership(
+        communityId: communityId,
+        uid: uid,
+        displayName: displayName,
+        role: MemberRole.member,
+        status: MemberStatus.approved,
+        requestedAt: DateTime.now(),
+        approvedAt: DateTime.now(),
+      ).toFirestore());
+
+      // Increment member count
+      batch.update(_db.collection('communities').doc(communityId), {
+        'stats.memberCount': FieldValue.increment(1),
+      });
+
+      await batch.commit();
+    } else {
+      // Requires approval
+      await memberRef.set(CommunityMembership(
+        communityId: communityId,
+        uid: uid,
+        displayName: displayName,
+        role: MemberRole.member,
+        status: MemberStatus.pending,
+        requestedAt: DateTime.now(),
+      ).toFirestore());
+
+      // Notify owner and moderators
+      await _notifyMembershipRequest(communityId, displayName);
+    }
   }
 
   /// Approve membership request
@@ -501,10 +544,17 @@ class CommunityService {
         .map((snapshot) => snapshot.docs.length);
   }
 
-  // ==================== WEEK MANAGEMENT ====================
+  // ==================== PERIOD MANAGEMENT ====================
 
-  /// Create a new week for community
-  Future<String> createNewWeek(String communityId) async {
+  /// Create a new period for community (v8.0 - replaces createNewWeek)
+  Future<String> createNewPeriod({
+    required String communityId,
+    required String title,
+    String? description,
+    DateTime? startDate,
+    DateTime? endDate,
+    int minVotesForDiscussion = 1,
+  }) async {
     final uid = _currentUid;
     if (uid == null) throw Exception('User not logged in');
 
@@ -514,22 +564,27 @@ class CommunityService {
       throw Exception('Not authorized');
     }
 
-    final weekRef = _db.collection('weeks').doc();
+    final periodRef = _db.collection('periods').doc();
     final batch = _db.batch();
 
-    batch.set(weekRef, {
+    batch.set(periodRef, {
       'communityId': communityId,
+      'title': title,
+      if (description != null) 'description': description,
       'phase': 'voting',
+      if (startDate != null) 'startDate': Timestamp.fromDate(startDate),
+      if (endDate != null) 'endDate': Timestamp.fromDate(endDate),
+      'minVotesForDiscussion': minVotesForDiscussion,
       'createdAt': FieldValue.serverTimestamp(),
     });
 
     batch.update(_db.collection('communities').doc(communityId), {
-      'currentWeekId': weekRef.id,
-      'stats.weekCount': FieldValue.increment(1),
+      'currentPeriodId': periodRef.id,
+      'stats.periodCount': FieldValue.increment(1),
     });
 
     await batch.commit();
-    return weekRef.id;
+    return periodRef.id;
   }
 
   // ==================== PRIVATE HELPERS ====================

@@ -23,7 +23,7 @@ class AppNotification {
   final String fromUid;
   final String fromDisplayName;
   final String? targetId;      // commentId for reply/mention/upvote
-  final String? weekId;
+  final String? periodId;
   final String? articleId;
   final String? preview;       // Comment preview text
   final String? communityId;   // v5.0: for membership notifications
@@ -37,7 +37,7 @@ class AppNotification {
     required this.fromUid,
     required this.fromDisplayName,
     this.targetId,
-    this.weekId,
+    this.periodId,
     this.articleId,
     this.preview,
     this.communityId,
@@ -57,7 +57,7 @@ class AppNotification {
       fromUid: data['fromUid'] ?? '',
       fromDisplayName: data['fromDisplayName'] ?? '',
       targetId: data['targetId'],
-      weekId: data['weekId'],
+      periodId: data['periodId'],
       articleId: data['articleId'],
       preview: data['preview'],
       communityId: data['communityId'],
@@ -73,7 +73,7 @@ class AppNotification {
       'fromUid': fromUid,
       'fromDisplayName': fromDisplayName,
       if (targetId != null) 'targetId': targetId,
-      if (weekId != null) 'weekId': weekId,
+      if (periodId != null) 'periodId': periodId,
       if (articleId != null) 'articleId': articleId,
       if (preview != null) 'preview': preview,
       if (communityId != null) 'communityId': communityId,
@@ -242,7 +242,7 @@ class NotificationService {
   Future<void> createMentionNotification({
     required String targetUid,
     required String fromDisplayName,
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String commentId,
     String? preview,
@@ -260,7 +260,7 @@ class NotificationService {
           fromUid: uid,
           fromDisplayName: fromDisplayName,
           targetId: commentId,
-          weekId: weekId,
+          periodId: periodId,
           articleId: articleId,
           preview: preview,
           createdAt: DateTime.now(),
@@ -271,7 +271,7 @@ class NotificationService {
   Future<void> createReplyNotification({
     required String targetUid,
     required String fromDisplayName,
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String commentId,
     String? preview,
@@ -289,7 +289,7 @@ class NotificationService {
           fromUid: uid,
           fromDisplayName: fromDisplayName,
           targetId: commentId,
-          weekId: weekId,
+          periodId: periodId,
           articleId: articleId,
           preview: preview,
           createdAt: DateTime.now(),
@@ -300,7 +300,7 @@ class NotificationService {
   Future<void> createUpvoteNotification({
     required String targetUid,
     required String fromDisplayName,
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String commentId,
   }) async {
@@ -331,7 +331,7 @@ class NotificationService {
           fromUid: uid,
           fromDisplayName: fromDisplayName,
           targetId: commentId,
-          weekId: weekId,
+          periodId: periodId,
           articleId: articleId,
           createdAt: DateTime.now(),
         ).toFirestore());
@@ -418,7 +418,7 @@ class NotificationService {
   Future<void> createSuggestionApprovedNotification({
     required String targetUid,
     required String suggestionTitle,
-    required String weekId,
+    required String periodId,
   }) async {
     final uid = _currentUid;
     if (uid == null) return;
@@ -432,7 +432,7 @@ class NotificationService {
           type: NotificationType.suggestionApproved,
           fromUid: uid,
           fromDisplayName: 'Sistem',
-          weekId: weekId,
+          periodId: periodId,
           preview: suggestionTitle,
           createdAt: DateTime.now(),
         ).toFirestore());
@@ -442,7 +442,7 @@ class NotificationService {
   Future<void> createSuggestionRejectedNotification({
     required String targetUid,
     required String suggestionTitle,
-    required String weekId,
+    required String periodId,
     String? reason,
   }) async {
     final uid = _currentUid;
@@ -457,7 +457,7 @@ class NotificationService {
           type: NotificationType.suggestionRejected,
           fromUid: uid,
           fromDisplayName: 'Sistem',
-          weekId: weekId,
+          periodId: periodId,
           preview: suggestionTitle,
           createdAt: DateTime.now(),
         ).toFirestore());

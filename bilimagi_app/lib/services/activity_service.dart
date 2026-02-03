@@ -13,7 +13,7 @@ class ActivityService {
 
   /// Record a comment activity
   Future<void> recordCommentActivity({
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String articleTitle,
     required String communityId,
@@ -35,7 +35,7 @@ class ActivityService {
       'targetType': 'article',
       'targetId': articleId,
       'targetName': articleTitle,
-      'weekId': weekId,
+      'periodId': periodId,
       'communityId': communityId,
       'communityName': communityName,
       'preview': preview,
@@ -45,7 +45,7 @@ class ActivityService {
 
   /// Record a vote activity
   Future<void> recordVoteActivity({
-    required String weekId,
+    required String periodId,
     required String articleId,
     required String articleTitle,
     required String communityId,
@@ -66,7 +66,7 @@ class ActivityService {
       'targetType': 'article',
       'targetId': articleId,
       'targetName': articleTitle,
-      'weekId': weekId,
+      'periodId': periodId,
       'communityId': communityId,
       'communityName': communityName,
       'createdAt': FieldValue.serverTimestamp(),
@@ -101,7 +101,7 @@ class ActivityService {
 
   /// Record an article suggestion activity
   Future<void> recordSuggestionActivity({
-    required String weekId,
+    required String periodId,
     required String suggestionId,
     required String suggestionTitle,
     required String communityId,
@@ -122,7 +122,7 @@ class ActivityService {
       'targetType': 'article',
       'targetId': suggestionId,
       'targetName': suggestionTitle,
-      'weekId': weekId,
+      'periodId': periodId,
       'communityId': communityId,
       'communityName': communityName,
       'createdAt': FieldValue.serverTimestamp(),

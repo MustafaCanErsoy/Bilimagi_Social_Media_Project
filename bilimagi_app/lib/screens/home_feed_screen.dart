@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
-import '../models/week.dart';
+import '../models/period.dart';
 import '../models/article.dart';
 import '../models/community.dart';
 import '../models/user_profile.dart';
 import '../models/user_activity.dart';
-import '../services/week_service.dart';
+import '../services/period_service.dart';
 import '../services/follow_service.dart';
 import '../services/activity_service.dart';
 import '../services/auth_service.dart';
@@ -17,7 +17,7 @@ import '../widgets/empty_state_card.dart';
 import '../widgets/skeleton_loading.dart';
 import '../widgets/activity_feed_card.dart';
 import 'discussion_screen.dart';
-import 'week_screen.dart';
+import 'period_screen.dart';
 import 'profile_screen.dart';
 
 class HomeFeedScreen extends StatefulWidget {
@@ -106,14 +106,14 @@ class _ExploreTabState extends State<_ExploreTab> {
           _ActiveDiscussionsSection(),
           const SizedBox(height: 24),
 
-          // Voting This Week Section
+          // Voting This Period Section
           const SectionHeader(
             icon: Icons.how_to_vote,
-            title: 'Bu Hafta Oylama',
-            subtitle: 'Oyunu kullan, kazananı belirle',
+            title: 'Aktif Oylamalar',
+            subtitle: 'Oyunu kullan, tartismayi belirle',
           ),
           const SizedBox(height: 12),
-          _VotingWeeksSection(),
+          _VotingPeriodsSection(),
         ],
       ),
     );
@@ -238,17 +238,17 @@ class _ActivityFeedSection extends StatelessWidget {
       case ActivityType.comment:
       case ActivityType.vote:
       case ActivityType.suggestion:
-        // Navigate to discussion or week screen
-        if (activity.weekId != null && activity.targetId.isNotEmpty) {
-          final weekService = WeekService();
-          final week = await weekService.getWeekOnce(activity.weekId!);
-          final article = await weekService.getArticleOnce(activity.weekId!, activity.targetId);
-          if (week != null && article != null && context.mounted) {
+        // Navigate to discussion or period screen
+        if (activity.periodId != null && activity.targetId.isNotEmpty) {
+          final periodService = PeriodService();
+          final period = await periodService.getPeriodOnce(activity.periodId!);
+          final article = await periodService.getArticleOnce(activity.periodId!, activity.targetId);
+          if (period != null && article != null && context.mounted) {
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => DiscussionScreen(
-                  week: week,
+                  period: period,
                   article: article,
                 ),
               ),
@@ -257,7 +257,7 @@ class _ActivityFeedSection extends StatelessWidget {
         }
         break;
       case ActivityType.join:
-        // Navigate to community (week screen)
+        // Navigate to community (period screen)
         if (activity.communityId != null && context.mounted) {
           // For now, navigate to profile - community navigation would need community object
           Navigator.push(
@@ -391,10 +391,10 @@ class _SuggestedUserCard extends StatelessWidget {
 class _ActiveDiscussionsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final weekService = WeekService();
+    final periodService = PeriodService();
 
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: weekService.getActiveDiscussions(),
+      stream: periodService.getActiveDiscussions(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Column(
@@ -414,20 +414,20 @@ class _ActiveDiscussionsSection extends StatelessWidget {
         if (discussions.isEmpty) {
           return const EmptyStateCard(
             icon: Icons.chat_bubble_outline,
-            message: 'Henüz aktif tartışma yok',
+            message: 'Henuz aktif tartisma yok',
           );
         }
 
         return Column(
           children: discussions.map((data) {
-            final week = data['week'] as Week;
-            final article = data['article'] as Article;
+            final period = data['period'] as Period;
             final community = data['community'] as Community;
+            final eligibleCount = data['eligibleArticleCount'] as int;
 
-            return _DiscussionCard(
-              week: week,
-              article: article,
+            return _DiscussionPeriodCard(
+              period: period,
               community: community,
+              eligibleArticleCount: eligibleCount,
             );
           }).toList(),
         );
@@ -436,13 +436,13 @@ class _ActiveDiscussionsSection extends StatelessWidget {
   }
 }
 
-class _VotingWeeksSection extends StatelessWidget {
+class _VotingPeriodsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final weekService = WeekService();
+    final periodService = PeriodService();
 
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: weekService.getVotingWeeks(),
+      stream: periodService.getVotingPeriods(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Column(
@@ -457,19 +457,25 @@ class _VotingWeeksSection extends StatelessWidget {
           return Center(child: Text('Hata: ${snapshot.error}'));
         }
 
-        final votingWeeks = snapshot.data ?? [];
+        final votingPeriods = snapshot.data ?? [];
 
-        if (votingWeeks.isEmpty) {
+        if (votingPeriods.isEmpty) {
           return const EmptyStateCard(
             icon: Icons.how_to_vote_outlined,
-            message: 'Şu anda oylama yapılan topluluk yok',
+            message: 'Su anda oylama yapilan topluluk yok',
           );
         }
 
         return Column(
-          children: votingWeeks.map((data) {
+          children: votingPeriods.map((data) {
+            final period = data['period'] as Period;
             final community = data['community'] as Community;
-            return _VotingWeekCard(community: community);
+            final articleCount = data['articleCount'] as int;
+            return _VotingPeriodCard(
+              period: period,
+              community: community,
+              articleCount: articleCount,
+            );
           }).toList(),
         );
       },
@@ -477,21 +483,16 @@ class _VotingWeeksSection extends StatelessWidget {
   }
 }
 
-class _DiscussionCard extends StatelessWidget {
-  final Week week;
-  final Article article;
+class _DiscussionPeriodCard extends StatelessWidget {
+  final Period period;
   final Community community;
+  final int eligibleArticleCount;
 
-  const _DiscussionCard({
-    required this.week,
-    required this.article,
+  const _DiscussionPeriodCard({
+    required this.period,
     required this.community,
+    required this.eligibleArticleCount,
   });
-
-  void _shareArticle() {
-    final text = '${article.title}\n\n${article.summary}\n\nMakaleyi oku: ${article.link}\n\n#Bilimagi ile paylaşıldı';
-    Share.share(text, subject: article.title);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -502,10 +503,7 @@ class _DiscussionCard extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => DiscussionScreen(
-                week: week,
-                article: article,
-              ),
+              builder: (context) => PeriodScreen(community: community),
             ),
           );
         },
@@ -515,7 +513,7 @@ class _DiscussionCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Community badge
+              // Community badge and phase
               Row(
                 children: [
                   Container(
@@ -537,20 +535,8 @@ class _DiscussionCard extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  // Share button
-                  InkWell(
-                    onTap: _shareArticle,
-                    borderRadius: BorderRadius.circular(20),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.share,
-                        size: 18,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
+                  Text(period.phaseEmoji, style: const TextStyle(fontSize: 16)),
+                  const SizedBox(width: 4),
                   Icon(
                     Icons.chat_bubble,
                     size: 16,
@@ -559,9 +545,9 @@ class _DiscussionCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              // Article title
+              // Period title
               Text(
-                article.title,
+                period.title,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -569,70 +555,51 @@ class _DiscussionCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 8),
-              // Article summary
-              Text(
-                article.summary,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.textSecondary,
+              if (period.description != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  period.description!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.textSecondary,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+              ],
               const SizedBox(height: 8),
               // Stats
               Row(
                 children: [
-                  // Vote count (stream)
-                  StreamBuilder<int>(
-                    stream: WeekService().getArticleVoteCount(week.id, article.id),
-                    builder: (context, snapshot) {
-                      final count = snapshot.data ?? article.voteCount;
-                      return Row(
-                        children: [
-                          Icon(
-                            Icons.emoji_events,
-                            size: 16,
-                            color: AppTheme.accentColor,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '$count oy',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textSecondary,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                  Icon(
+                    Icons.article,
+                    size: 16,
+                    color: AppTheme.accentColor,
                   ),
-                  const SizedBox(width: 16),
-                  // Comment count (stream)
-                  StreamBuilder<int>(
-                    stream: CommentService().getCommentCount(week.id, article.id),
-                    builder: (context, snapshot) {
-                      final count = snapshot.data ?? 0;
-                      return Row(
-                        children: [
-                          Icon(
-                            Icons.chat_bubble_outline,
-                            size: 16,
-                            color: AppTheme.textSecondary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '$count yorum',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textSecondary,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                  const SizedBox(width: 4),
+                  Text(
+                    '$eligibleArticleCount makale tartisiliyor',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
+                  if (period.dateRangeDisplay != null) ...[
+                    const SizedBox(width: 16),
+                    Icon(
+                      Icons.calendar_today,
+                      size: 14,
+                      color: AppTheme.textTertiary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      period.dateRangeDisplay!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textTertiary,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -643,10 +610,16 @@ class _DiscussionCard extends StatelessWidget {
   }
 }
 
-class _VotingWeekCard extends StatelessWidget {
+class _VotingPeriodCard extends StatelessWidget {
+  final Period period;
   final Community community;
+  final int articleCount;
 
-  const _VotingWeekCard({required this.community});
+  const _VotingPeriodCard({
+    required this.period,
+    required this.community,
+    required this.articleCount,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -657,7 +630,7 @@ class _VotingWeekCard extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => WeekScreen(community: community),
+              builder: (context) => PeriodScreen(community: community),
             ),
           );
         },
@@ -692,12 +665,22 @@ class _VotingWeekCard extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
-                      'Oylama devam ediyor',
+                      period.title,
                       style: TextStyle(
                         fontSize: 13,
                         color: AppTheme.textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$articleCount makale - oylama devam ediyor',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textTertiary,
                       ),
                     ),
                   ],

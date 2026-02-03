@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/community.dart';
-import '../models/week.dart';
+import '../models/period.dart';
 import '../services/firestore_service.dart';
-import '../services/week_service.dart';
+import '../services/period_service.dart';
 import '../services/seed_service.dart';
 
 class AdminScreen extends StatefulWidget {
@@ -14,7 +14,7 @@ class AdminScreen extends StatefulWidget {
 
 class _AdminScreenState extends State<AdminScreen> {
   final _firestoreService = FirestoreService();
-  final _weekService = WeekService();
+  final _periodService = PeriodService();
   final _seedService = SeedService();
   String? _selectedCommunityId;
   bool _isSeeding = false;
@@ -99,7 +99,7 @@ class _AdminScreenState extends State<AdminScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Demo verileri başarıyla yüklendi!'),
+            content: Text('Demo verileri basariyla yuklendi!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -108,7 +108,7 @@ class _AdminScreenState extends State<AdminScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Hata: $e'),
+            content: Text('Hata: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -209,30 +209,30 @@ class _AdminScreenState extends State<AdminScreen> {
           );
         }
 
-        final weekId = community.currentWeekId;
+        final periodId = community.currentPeriodId;
 
-        if (weekId == null) {
+        if (periodId == null) {
           return const Card(
             child: Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Bu topluluk için aktif hafta bulunmuyor.'),
+              child: Text('Bu topluluk için aktif dönem bulunmuyor.'),
             ),
           );
         }
 
-        return StreamBuilder<Week?>(
-          stream: _weekService.getWeek(weekId),
-          builder: (context, weekSnapshot) {
-            if (weekSnapshot.connectionState == ConnectionState.waiting) {
+        return StreamBuilder<Period?>(
+          stream: _periodService.getPeriod(periodId),
+          builder: (context, periodSnapshot) {
+            if (periodSnapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final week = weekSnapshot.data;
-            if (week == null) {
+            final period = periodSnapshot.data;
+            if (period == null) {
               return const Card(
                 child: Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text('Hafta bulunamadı.'),
+                  child: Text('Dönem bulunamadı.'),
                 ),
               );
             }
@@ -243,13 +243,18 @@ class _AdminScreenState extends State<AdminScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      'Dönem: ${period.title}',
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         const Text(
                           'Mevcut Faz: ',
                           style: TextStyle(fontSize: 16),
                         ),
-                        _buildPhaseChip(week.phase),
+                        _buildPhaseChip(period.phase),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -265,8 +270,8 @@ class _AdminScreenState extends State<AdminScreen> {
                             label: 'Oylama',
                             icon: Icons.how_to_vote,
                             color: Colors.blue,
-                            isActive: week.phase == WeekPhase.voting,
-                            onPressed: () => _changePhase(weekId, WeekPhase.voting),
+                            isActive: period.phase == PeriodPhase.voting,
+                            onPressed: () => _changePhase(periodId, PeriodPhase.voting, period.communityId),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -275,8 +280,8 @@ class _AdminScreenState extends State<AdminScreen> {
                             label: 'Tartışma',
                             icon: Icons.chat,
                             color: Colors.green,
-                            isActive: week.phase == WeekPhase.discussion,
-                            onPressed: () => _changePhase(weekId, WeekPhase.discussion),
+                            isActive: period.phase == PeriodPhase.discussion,
+                            onPressed: () => _changePhase(periodId, PeriodPhase.discussion, period.communityId),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -285,8 +290,8 @@ class _AdminScreenState extends State<AdminScreen> {
                             label: 'Kapalı',
                             icon: Icons.lock,
                             color: Colors.grey,
-                            isActive: week.phase == WeekPhase.closed,
-                            onPressed: () => _changePhase(weekId, WeekPhase.closed),
+                            isActive: period.phase == PeriodPhase.closed,
+                            onPressed: () => _changePhase(periodId, PeriodPhase.closed, period.communityId),
                           ),
                         ),
                       ],
@@ -301,27 +306,24 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  Widget _buildPhaseChip(WeekPhase phase) {
+  Widget _buildPhaseChip(PeriodPhase phase) {
     Color color;
     String label;
     IconData icon;
 
     switch (phase) {
-      case WeekPhase.voting:
+      case PeriodPhase.voting:
         color = Colors.blue;
         label = 'Oylama';
         icon = Icons.how_to_vote;
-        break;
-      case WeekPhase.discussion:
+      case PeriodPhase.discussion:
         color = Colors.green;
         label = 'Tartışma';
         icon = Icons.chat;
-        break;
-      case WeekPhase.closed:
+      case PeriodPhase.closed:
         color = Colors.grey;
         label = 'Kapalı';
         icon = Icons.lock;
-        break;
     }
 
     return Chip(
@@ -331,9 +333,9 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  Future<void> _changePhase(String weekId, WeekPhase newPhase) async {
+  Future<void> _changePhase(String periodId, PeriodPhase newPhase, String communityId) async {
     try {
-      await _weekService.changePhase(weekId, newPhase);
+      await _periodService.changePhase(periodId, newPhase, communityId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Faz "${newPhase.name}" olarak değiştirildi.')),

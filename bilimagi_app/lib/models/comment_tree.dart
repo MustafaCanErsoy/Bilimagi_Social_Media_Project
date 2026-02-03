@@ -1,4 +1,4 @@
-import '../services/week_service.dart';
+import '../models/comment.dart';
 
 /// Helper class to organize flat comments into a tree structure
 class CommentTree {

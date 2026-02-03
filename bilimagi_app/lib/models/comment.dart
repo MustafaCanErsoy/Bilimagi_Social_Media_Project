@@ -31,6 +31,11 @@ class Comment {
   final DateTime? hiddenAt;
   final String? hiddenReason;
 
+  // v8.0: Pinned comment fields
+  final bool isPinned;
+  final String? pinnedByUid;
+  final DateTime? pinnedAt;
+
   Comment({
     required this.id,
     required this.uid,
@@ -50,6 +55,10 @@ class Comment {
     this.hiddenByUid,
     this.hiddenAt,
     this.hiddenReason,
+    // v8.0
+    this.isPinned = false,
+    this.pinnedByUid,
+    this.pinnedAt,
   });
 
   factory Comment.fromFirestore(DocumentSnapshot doc) {
@@ -73,6 +82,10 @@ class Comment {
       hiddenByUid: data['hiddenByUid'],
       hiddenAt: (data['hiddenAt'] as Timestamp?)?.toDate(),
       hiddenReason: data['hiddenReason'],
+      // v8.0
+      isPinned: data['isPinned'] ?? false,
+      pinnedByUid: data['pinnedByUid'],
+      pinnedAt: (data['pinnedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -95,6 +108,10 @@ class Comment {
       'hiddenByUid': hiddenByUid,
       'hiddenAt': hiddenAt != null ? Timestamp.fromDate(hiddenAt!) : null,
       'hiddenReason': hiddenReason,
+      // v8.0
+      'isPinned': isPinned,
+      'pinnedByUid': pinnedByUid,
+      'pinnedAt': pinnedAt != null ? Timestamp.fromDate(pinnedAt!) : null,
     };
   }
 }

@@ -1,5 +1,39 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Join type for communities (v8.0)
+enum JoinType {
+  open,     // Anyone can join without approval
+  approval; // Requires owner/mod approval
+
+  String get label {
+    switch (this) {
+      case JoinType.open:
+        return 'Acik Katilim';
+      case JoinType.approval:
+        return 'Onay Gerekli';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case JoinType.open:
+        return 'Herkes onay beklemeden katilabilir';
+      case JoinType.approval:
+        return 'Katilim icin sahip/moderator onayi gerekir';
+    }
+  }
+
+  static JoinType fromString(String? value) {
+    switch (value) {
+      case 'open':
+        return JoinType.open;
+      case 'approval':
+      default:
+        return JoinType.approval;
+    }
+  }
+}
+
 /// Community categories (hybrid: fixed list + "other")
 class CommunityCategory {
   static const String physics = 'physics';
@@ -32,12 +66,12 @@ class CommunityCategory {
 /// Community statistics
 class CommunityStats {
   final int memberCount;
-  final int weekCount;
+  final int periodCount;
   final int totalArticles;
 
   const CommunityStats({
     this.memberCount = 0,
-    this.weekCount = 0,
+    this.periodCount = 0,
     this.totalArticles = 0,
   });
 
@@ -45,7 +79,8 @@ class CommunityStats {
     if (data == null) return const CommunityStats();
     return CommunityStats(
       memberCount: data['memberCount'] ?? 0,
-      weekCount: data['weekCount'] ?? 0,
+      // Support both old 'weekCount' and new 'periodCount'
+      periodCount: data['periodCount'] ?? data['weekCount'] ?? 0,
       totalArticles: data['totalArticles'] ?? 0,
     );
   }
@@ -53,19 +88,19 @@ class CommunityStats {
   Map<String, dynamic> toMap() {
     return {
       'memberCount': memberCount,
-      'weekCount': weekCount,
+      'periodCount': periodCount,
       'totalArticles': totalArticles,
     };
   }
 
   CommunityStats copyWith({
     int? memberCount,
-    int? weekCount,
+    int? periodCount,
     int? totalArticles,
   }) {
     return CommunityStats(
       memberCount: memberCount ?? this.memberCount,
-      weekCount: weekCount ?? this.weekCount,
+      periodCount: periodCount ?? this.periodCount,
       totalArticles: totalArticles ?? this.totalArticles,
     );
   }
@@ -76,7 +111,7 @@ class Community {
   final String name;
   final String description;
   final String ownerUid;
-  final String? currentWeekId;
+  final String? currentPeriodId;
 
   // v5.0 new fields
   final String category;
@@ -90,12 +125,17 @@ class Community {
   // v6.0: Soft delete
   final bool isDeleted;
 
+  // v8.0: New fields
+  final String? coverPhotoURL;
+  final String? rules;
+  final JoinType joinType;
+
   Community({
     required this.id,
     required this.name,
     required this.description,
     required this.ownerUid,
-    this.currentWeekId,
+    this.currentPeriodId,
     this.category = CommunityCategory.other,
     this.customCategory,
     this.iconEmoji,
@@ -104,6 +144,10 @@ class Community {
     this.isPublic = true,
     this.stats = const CommunityStats(),
     this.isDeleted = false,
+    // v8.0
+    this.coverPhotoURL,
+    this.rules,
+    this.joinType = JoinType.approval,
   });
 
   /// Get display category (uses customCategory if category is "other")
@@ -121,7 +165,8 @@ class Community {
       name: data['name'] ?? '',
       description: data['description'] ?? '',
       ownerUid: data['ownerUid'] ?? '',
-      currentWeekId: data['currentWeekId'],
+      // Support both old 'currentWeekId' and new 'currentPeriodId'
+      currentPeriodId: data['currentPeriodId'] ?? data['currentWeekId'],
       category: data['category'] ?? CommunityCategory.other,
       customCategory: data['customCategory'],
       iconEmoji: data['iconEmoji'],
@@ -130,6 +175,10 @@ class Community {
       isPublic: data['isPublic'] ?? true,
       stats: CommunityStats.fromMap(data['stats']),
       isDeleted: data['isDeleted'] ?? false,
+      // v8.0
+      coverPhotoURL: data['coverPhotoURL'],
+      rules: data['rules'],
+      joinType: JoinType.fromString(data['joinType']),
     );
   }
 
@@ -138,7 +187,7 @@ class Community {
       'name': name,
       'description': description,
       'ownerUid': ownerUid,
-      'currentWeekId': currentWeekId,
+      'currentPeriodId': currentPeriodId,
       'category': category,
       'customCategory': customCategory,
       'iconEmoji': iconEmoji,
@@ -146,26 +195,34 @@ class Community {
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
       'isPublic': isPublic,
       'stats': stats.toMap(),
+      // v8.0
+      if (coverPhotoURL != null) 'coverPhotoURL': coverPhotoURL,
+      if (rules != null) 'rules': rules,
+      'joinType': joinType.name,
     };
   }
 
   Community copyWith({
     String? name,
     String? description,
-    String? currentWeekId,
+    String? currentPeriodId,
     String? category,
     String? customCategory,
     String? iconEmoji,
     int? colorIndex,
     bool? isPublic,
     CommunityStats? stats,
+    // v8.0
+    String? coverPhotoURL,
+    String? rules,
+    JoinType? joinType,
   }) {
     return Community(
       id: id,
       name: name ?? this.name,
       description: description ?? this.description,
       ownerUid: ownerUid,
-      currentWeekId: currentWeekId ?? this.currentWeekId,
+      currentPeriodId: currentPeriodId ?? this.currentPeriodId,
       category: category ?? this.category,
       customCategory: customCategory ?? this.customCategory,
       iconEmoji: iconEmoji ?? this.iconEmoji,
@@ -173,6 +230,10 @@ class Community {
       createdAt: createdAt,
       isPublic: isPublic ?? this.isPublic,
       stats: stats ?? this.stats,
+      // v8.0
+      coverPhotoURL: coverPhotoURL ?? this.coverPhotoURL,
+      rules: rules ?? this.rules,
+      joinType: joinType ?? this.joinType,
     );
   }
 }

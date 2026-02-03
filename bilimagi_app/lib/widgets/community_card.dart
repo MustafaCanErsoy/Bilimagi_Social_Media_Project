@@ -24,12 +24,30 @@ class CommunityCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Cover photo (v8.0)
+            if (community.coverPhotoURL != null)
+              SizedBox(
+                height: 80,
+                width: double.infinity,
+                child: Image.network(
+                  community.coverPhotoURL!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: avatarColors[community.colorIndex % avatarColors.length]
+                        .withValues(alpha: 0.2),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
             children: [
               // Community icon/emoji
               Container(
@@ -111,6 +129,23 @@ class CommunityCard extends StatelessWidget {
                             color: AppTheme.getTextTertiary(context),
                           ),
                         ),
+                        // Open join indicator (v8.0)
+                        if (community.joinType == JoinType.open) ...[
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.lock_open,
+                            size: 14,
+                            color: Colors.green.shade600,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            'Acik',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.green.shade600,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -127,6 +162,8 @@ class CommunityCard extends StatelessWidget {
                 ),
             ],
           ),
+        ),
+          ],
         ),
       ),
     );
@@ -172,8 +209,11 @@ class CommunityCard extends StatelessWidget {
     try {
       await service.requestMembership(community.id);
       if (context.mounted) {
+        final message = community.joinType == JoinType.open
+            ? 'Topluluga katildiniz!'
+            : 'Katilma isteginiz gonderildi';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Katılma isteğiniz gönderildi')),
+          SnackBar(content: Text(message)),
         );
       }
     } catch (e) {

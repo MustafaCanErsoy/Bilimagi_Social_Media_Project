@@ -31,7 +31,7 @@ enum SuggestionStatus {
 
 class ArticleSuggestion {
   final String id;
-  final String weekId;
+  final String periodId;
   final String title;
   final String summary;
   final String link;
@@ -46,7 +46,7 @@ class ArticleSuggestion {
 
   ArticleSuggestion({
     required this.id,
-    required this.weekId,
+    required this.periodId,
     required this.title,
     required this.summary,
     required this.link,
@@ -64,11 +64,11 @@ class ArticleSuggestion {
   bool get isApproved => status == SuggestionStatus.approved;
   bool get isRejected => status == SuggestionStatus.rejected;
 
-  factory ArticleSuggestion.fromFirestore(DocumentSnapshot doc, String weekId) {
+  factory ArticleSuggestion.fromFirestore(DocumentSnapshot doc, String periodId) {
     final data = doc.data() as Map<String, dynamic>;
     return ArticleSuggestion(
       id: doc.id,
-      weekId: weekId,
+      periodId: periodId,
       title: data['title'] ?? '',
       summary: data['summary'] ?? '',
       link: data['link'] ?? '',
@@ -108,7 +108,7 @@ class ArticleSuggestion {
   }) {
     return ArticleSuggestion(
       id: id,
-      weekId: weekId,
+      periodId: periodId,
       title: title,
       summary: summary,
       link: link,
