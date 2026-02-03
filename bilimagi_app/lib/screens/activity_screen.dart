@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../services/notification_service.dart';
+import '../services/community_service.dart';
 import '../core/theme.dart';
 import '../widgets/skeleton_loading.dart';
 import 'profile_screen.dart';
+import 'period_screen.dart';
 
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({super.key});
@@ -13,8 +15,10 @@ class ActivityScreen extends StatefulWidget {
 
 class _ActivityScreenState extends State<ActivityScreen> {
   final _notificationService = NotificationService();
+  final _communityService = CommunityService();
   Key _refreshKey = UniqueKey();
   NotificationType? _selectedFilter;
+  String? _selectedCategory; // v10.0: Category filter (social, community, suggestions)
 
   @override
   void initState() {
@@ -38,14 +42,14 @@ class _ActivityScreenState extends State<ActivityScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
   }
 
-  PopupMenuItem<NotificationType?> _buildFilterMenuItem(
-    NotificationType? type,
+  PopupMenuItem<String> _buildStringFilterMenuItem(
+    String value,
     String label,
     IconData icon,
+    bool isSelected,
   ) {
-    final isSelected = _selectedFilter == type;
-    return PopupMenuItem<NotificationType?>(
-      value: type,
+    return PopupMenuItem<String>(
+      value: value,
       child: Row(
         children: [
           Icon(
@@ -70,6 +74,36 @@ class _ActivityScreenState extends State<ActivityScreen> {
     );
   }
 
+  /// v10.0: Filter notifications by category
+  List<AppNotification> _filterByCategory(List<AppNotification> notifications) {
+    if (_selectedCategory == null) return notifications;
+
+    switch (_selectedCategory) {
+      case 'social':
+        return notifications.where((n) =>
+          n.type == NotificationType.follow ||
+          n.type == NotificationType.mention ||
+          n.type == NotificationType.reply ||
+          n.type == NotificationType.upvote
+        ).toList();
+      case 'community':
+        return notifications.where((n) =>
+          n.type == NotificationType.membershipRequest ||
+          n.type == NotificationType.membershipApproved ||
+          n.type == NotificationType.membershipRejected ||
+          n.type == NotificationType.roleChanged ||
+          n.type == NotificationType.memberRemoved
+        ).toList();
+      case 'suggestions':
+        return notifications.where((n) =>
+          n.type == NotificationType.suggestionApproved ||
+          n.type == NotificationType.suggestionRejected
+        ).toList();
+      default:
+        return notifications;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -77,21 +111,43 @@ class _ActivityScreenState extends State<ActivityScreen> {
         title: const Text('Bildirimler'),
         actions: [
           // Filter button
-          PopupMenuButton<NotificationType?>(
+          PopupMenuButton<String>(
             icon: Badge(
-              isLabelVisible: _selectedFilter != null,
+              isLabelVisible: _selectedFilter != null || _selectedCategory != null,
               backgroundColor: AppTheme.primaryColor,
               child: const Icon(Icons.filter_list),
             ),
             tooltip: 'Filtrele',
-            onSelected: (value) => setState(() => _selectedFilter = value),
+            onSelected: (value) {
+              setState(() {
+                if (value == 'all') {
+                  _selectedFilter = null;
+                  _selectedCategory = null;
+                } else if (value.startsWith('cat_')) {
+                  _selectedCategory = value.substring(4);
+                  _selectedFilter = null;
+                } else {
+                  _selectedFilter = NotificationType.values.firstWhere(
+                    (e) => e.name == value,
+                    orElse: () => NotificationType.follow,
+                  );
+                  _selectedCategory = null;
+                }
+              });
+            },
             itemBuilder: (context) => [
-              _buildFilterMenuItem(null, 'Tümü', Icons.notifications),
+              _buildStringFilterMenuItem('all', 'Tümü', Icons.notifications, _selectedFilter == null && _selectedCategory == null),
               const PopupMenuDivider(),
-              _buildFilterMenuItem(NotificationType.follow, 'Takip', Icons.person_add),
-              _buildFilterMenuItem(NotificationType.mention, 'Bahsetme', Icons.alternate_email),
-              _buildFilterMenuItem(NotificationType.reply, 'Yanıt', Icons.reply),
-              _buildFilterMenuItem(NotificationType.upvote, 'Beğeni', Icons.thumb_up),
+              // Category filters (v10.0)
+              _buildStringFilterMenuItem('cat_social', 'Sosyal', Icons.people, _selectedCategory == 'social'),
+              _buildStringFilterMenuItem('cat_community', 'Topluluk', Icons.groups, _selectedCategory == 'community'),
+              _buildStringFilterMenuItem('cat_suggestions', 'Öneriler', Icons.lightbulb, _selectedCategory == 'suggestions'),
+              const PopupMenuDivider(),
+              // Type filters
+              _buildStringFilterMenuItem(NotificationType.follow.name, 'Takip', Icons.person_add, _selectedFilter == NotificationType.follow),
+              _buildStringFilterMenuItem(NotificationType.mention.name, 'Bahsetme', Icons.alternate_email, _selectedFilter == NotificationType.mention),
+              _buildStringFilterMenuItem(NotificationType.reply.name, 'Yanıt', Icons.reply, _selectedFilter == NotificationType.reply),
+              _buildStringFilterMenuItem(NotificationType.upvote.name, 'Beğeni', Icons.thumb_up, _selectedFilter == NotificationType.upvote),
             ],
           ),
           IconButton(
@@ -127,8 +183,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
           var notifications = snapshot.data ?? [];
 
-          // Filtreleme uygula
-          if (_selectedFilter != null) {
+          // v10.0: Apply category or type filter
+          if (_selectedCategory != null) {
+            notifications = _filterByCategory(notifications);
+          } else if (_selectedFilter != null) {
             notifications = notifications
                 .where((n) => n.type == _selectedFilter)
                 .toList();
@@ -291,12 +349,41 @@ class _ActivityScreenState extends State<ActivityScreen> {
       case NotificationType.membershipRequest:
       case NotificationType.membershipApproved:
       case NotificationType.membershipRejected:
-      case NotificationType.suggestionApproved:
-      case NotificationType.suggestionRejected:
       case NotificationType.roleChanged:
       case NotificationType.memberRemoved:
-        // TODO: Navigate to community or week when deep linking is supported
+        // v10.0: Navigate to community
+        if (notification.communityId != null) {
+          _navigateToCommunity(notification.communityId!);
+        }
         break;
+      case NotificationType.suggestionApproved:
+      case NotificationType.suggestionRejected:
+        // v10.0: Navigate to community if available
+        if (notification.communityId != null) {
+          _navigateToCommunity(notification.communityId!);
+        }
+        break;
+    }
+  }
+
+  /// v10.0: Navigate to community
+  Future<void> _navigateToCommunity(String communityId) async {
+    try {
+      final community = await _communityService.getCommunityOnce(communityId);
+      if (community != null && mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PeriodScreen(community: community),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Topluluk bulunamadı: $e')),
+        );
+      }
     }
   }
 }

@@ -105,7 +105,7 @@ class SeedService {
         'title': 'Şubat 2026 Tartışması',
         'description': 'Bu dönemde en güncel bilimsel makaleleri tartışıyoruz.',
         'phase': 'voting',
-        'minVotesForDiscussion': 1,
+        'topArticlesCount': 3, // v10.0: Top 3 articles for discussion
         'createdAt': FieldValue.serverTimestamp(),
       });
 

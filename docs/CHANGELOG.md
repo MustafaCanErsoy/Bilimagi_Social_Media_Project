@@ -4,6 +4,115 @@ All notable changes to Bilimagi will be documented in this file.
 
 ---
 
+## [v10.0] - 2026-02-03
+
+### Added - Top N Makale + UI Entegrasyonları + Yeni Ekranlar
+
+**Phase 1: Core Features**
+
+**Özellik 1: Kapak Fotoğrafı Konumu:**
+- Topluluk yönetim ekranında ikon seçici üste taşındı
+- Kapak fotoğrafı ikona göre altına alındı
+- Daha mantıklı UI sıralaması
+
+**Özellik 2: Top N Makale Sistemi:**
+- `minVotesForDiscussion` → `topArticlesCount` dönüşümü
+- Artık "en az X oy alan" yerine "en çok oy alan X makale" tartışmaya açılıyor
+- Varsayılan değer: 3 (en çok oy alan 3 makale)
+- Beraberlik durumunda erken eklenen makale öncelikli (createdAt ascending)
+- Period model güncellendi
+- PeriodService._markEligibleArticles() yeni Top N sıralama mantığı
+- period_create_screen.dart UI güncellemeleri
+- period_screen.dart metin güncellemeleri
+
+**Özellik 3: Arama Özelliği:**
+- Ana sayfa Keşfet sekmesine arama alanı eklendi
+- Dönem başlığında ve topluluk adında arama
+- Case-insensitive, debounced arama
+- In-memory filtreleme (Firestore sınırlaması)
+- Arama sonucu boşsa özel mesaj
+
+**Özellik 4: Aktivite Akışı Geliştirmeleri:**
+- Filtre chip'leri: Tümü, Yorumlar, Oylar, Katılımlar, Öneriler
+- Pagination: "Daha Fazla Yükle" butonu (20'şer kayıt)
+- Join aktiviteleri artık topluluğa yönlendiriyor (profile değil)
+- "Topluluğu gör" etiketi join aktivitelerinde
+
+**Phase 2: UI Integrations**
+
+**Özellik 5: Rozet ve Katkı Seviyesi UI:**
+- profile_screen.dart'a rozet bölümü entegre edildi
+- profile_screen.dart'a katkı seviyesi bölümü entegre edildi
+- BadgeList widget ile kazanılan rozetler ve tarihler
+- ContributionLevelCard widget ile detaylı puan dağılımı
+- Gerçek zamanlı StreamBuilder ile güncelleme
+
+**Özellik 6: Duyuru Sistemi UI:**
+- period_screen.dart'a duyuru banner entegrasyonu
+- Pinned duyurular otomatik olarak görünür
+- Tüm duyurular için modal bottom sheet
+- AnnouncementBanner ve AnnouncementCard kullanımı
+
+**Özellik 7: Anket Sistemi UI:**
+- period_screen.dart'a aktif anket bölümü eklendi
+- Kompakt anket önizlemesi kartı
+- Anket detayı için modal bottom sheet
+- PollCard widget ile oy kullanma
+- "Tümünü Gör" butonu ile tam liste
+
+**Özellik 8: Bildirim Merkezi İyileştirmeleri:**
+- Kategori filtreleri: Sosyal, Topluluk, Öneriler
+- Topluluk bildirimleri artık topluluğa yönlendiriyor (profil yerine)
+- Genişletilmiş filtre menüsü (10+ filtre seçeneği)
+
+**Özellik 9: Makale Detay Ekranı (YENİ):**
+- `article_detail_screen.dart` oluşturuldu
+- Hero image ile SliverAppBar
+- Markdown content görüntüleme (MarkdownViewer)
+- Kaydetme (bookmark) özelliği
+- Paylaşma ve orijinal makale bağlantısı
+- Meta bilgiler (oy, yorum, yazar, tarih)
+- Öneri bilgisi gösterimi
+
+**Özellik 10: Kullanıcı Arama (YENİ):**
+- `user_search_screen.dart` oluşturuldu
+- Debounced arama (500ms)
+- Kullanıcı listesi avatar ve bio ile
+- Profil sayfasına navigasyon
+
+### Changed
+
+**Güncellenen Modeller:**
+- `lib/models/period.dart` - minVotesForDiscussion → topArticlesCount
+
+**Güncellenen Servisler:**
+- `lib/services/period_service.dart` - Top N seçim mantığı, parametre değişikliği
+- `lib/services/community_service.dart` - topArticlesCount parametresi
+- `lib/services/seed_service.dart` - topArticlesCount: 3
+
+**Güncellenen Ekranlar:**
+- `lib/screens/community_manage_screen.dart` - UI sıralaması
+- `lib/screens/period_create_screen.dart` - Top N UI
+- `lib/screens/period_screen.dart` - Metin güncellemeleri + Duyuru + Anket UI
+- `lib/screens/home_feed_screen.dart` - Arama + Aktivite geliştirmeleri
+- `lib/screens/profile_screen.dart` - Rozet + Katkı seviyesi entegrasyonu
+- `lib/screens/activity_screen.dart` - Kategori filtreleri + Topluluk navigasyonu
+
+**Yeni Ekranlar:**
+- `lib/screens/article_detail_screen.dart` - Makale detay görüntüleme
+- `lib/screens/user_search_screen.dart` - Kullanıcı arama
+
+**Güncellenen Widgetlar:**
+- `lib/widgets/activity_feed_card.dart` - showCommunityHint parametresi
+
+### Firestore Schema Changes
+
+**periods/{periodId} (UPDATED):**
+- `minVotesForDiscussion` → `topArticlesCount: number` (default: 3)
+- Backward compat: Eski dökümanlar hala çalışır
+
+---
+
 ## [v9.0] - 2026-02-03
 
 ### Changed - Week -> Period Sistemi Donusumu

@@ -366,7 +366,51 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Cover photo section (v8.0)
+              // Community icon (v10.0 - moved above cover photo)
+              Center(
+                child: GestureDetector(
+                  onTap: _pickIcon,
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Center(
+                          child: _community!.iconEmoji != null
+                              ? Text(
+                                  _community!.iconEmoji!,
+                                  style: const TextStyle(fontSize: 40),
+                                )
+                              : Icon(Icons.groups, size: 40, color: color),
+                        ),
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.edit,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Cover photo section (v8.0 - moved below icon in v10.0)
               Card(
                 clipBehavior: Clip.antiAlias,
                 child: Column(
@@ -432,50 +476,6 @@ class _CommunityManageScreenState extends State<CommunityManageScreen> {
                       ),
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Community icon
-              Center(
-                child: GestureDetector(
-                  onTap: _pickIcon,
-                  child: Stack(
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Center(
-                          child: _community!.iconEmoji != null
-                              ? Text(
-                                  _community!.iconEmoji!,
-                                  style: const TextStyle(fontSize: 40),
-                                )
-                              : Icon(Icons.groups, size: 40, color: color),
-                        ),
-                      ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.edit,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
               const SizedBox(height: 24),

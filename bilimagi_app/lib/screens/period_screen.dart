@@ -3,10 +3,16 @@ import '../models/community.dart';
 import '../models/community_membership.dart';
 import '../models/period.dart';
 import '../models/article.dart';
+import '../models/announcement.dart';
+import '../models/poll.dart';
 import '../core/theme.dart';
 import '../services/period_service.dart';
 import '../services/community_service.dart';
 import '../services/suggestion_service.dart';
+import '../services/announcement_service.dart';
+import '../services/poll_service.dart';
+import '../widgets/announcement_card.dart';
+import '../widgets/poll_card.dart';
 import 'discussion_screen.dart';
 import 'suggestion_screen.dart';
 import 'suggestion_review_screen.dart';
@@ -27,6 +33,8 @@ class _PeriodScreenState extends State<PeriodScreen> {
   final _periodService = PeriodService();
   final _communityService = CommunityService();
   final _suggestionService = SuggestionService();
+  final _announcementService = AnnouncementService();
+  final _pollService = PollService();
   Set<String> _userVotes = {};
   bool _loadingVotes = true;
   MemberRole? _userRole;
@@ -243,6 +251,10 @@ class _PeriodScreenState extends State<PeriodScreen> {
           return Column(
             children: [
               _buildPeriodHeader(period),
+              // v10.0: Announcements section
+              _buildAnnouncementsSection(),
+              // v10.0: Active polls section
+              _buildActivePollsSection(),
               if (period.phase == PeriodPhase.voting)
                 _buildSuggestionButtons(period),
               Expanded(
@@ -321,12 +333,312 @@ class _PeriodScreenState extends State<PeriodScreen> {
                 border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
               ),
               child: Text(
-                'En az ${period.minVotesForDiscussion} oy alan makaleler tartismaya acilacak',
+                'En cok oy alan ${period.topArticlesCount} makale tartismaya acilacak',
                 style: const TextStyle(fontSize: 12, color: Colors.blue),
               ),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// v10.0: Build announcements section
+  Widget _buildAnnouncementsSection() {
+    return StreamBuilder<List<Announcement>>(
+      stream: _announcementService.getActiveAnnouncements(widget.community.id),
+      builder: (context, snapshot) {
+        final announcements = snapshot.data ?? [];
+
+        // Only show pinned announcements in compact view
+        final pinnedAnnouncements = announcements.where((a) => a.isPinned).toList();
+
+        if (pinnedAnnouncements.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        // Show announcement banner for first pinned announcement
+        final firstAnnouncement = pinnedAnnouncements.first;
+
+        return AnnouncementBanner(
+          announcement: firstAnnouncement,
+          onTap: () => _showAnnouncementsDialog(announcements),
+        );
+      },
+    );
+  }
+
+  void _showAnnouncementsDialog(List<Announcement> announcements) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Icon(Icons.campaign, color: AppTheme.primaryColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Topluluk Duyurulari',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(),
+            // Announcements list
+            Expanded(
+              child: announcements.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.campaign_outlined,
+                            size: 48,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text('Aktif duyuru bulunmuyor'),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: scrollController,
+                      itemCount: announcements.length,
+                      itemBuilder: (context, index) {
+                        return AnnouncementCard(
+                          announcement: announcements[index],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// v10.0: Build active polls section
+  Widget _buildActivePollsSection() {
+    return StreamBuilder<List<Poll>>(
+      stream: _pollService.getActivePolls(widget.community.id),
+      builder: (context, snapshot) {
+        final polls = snapshot.data ?? [];
+
+        if (polls.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        // Show compact poll preview with option to expand
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.poll, color: AppTheme.primaryColor, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Aktif Anketler',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${polls.length}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.primaryColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => _showPollsDialog(polls),
+                    child: const Text('Tumunu Gor'),
+                  ),
+                ],
+              ),
+            ),
+            // Show first poll preview
+            _buildPollPreview(polls.first),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPollPreview(Poll poll) {
+    return GestureDetector(
+      onTap: () => _showPollDialog(poll),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryColor.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppTheme.primaryColor.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.poll, color: AppTheme.primaryColor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    poll.question,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${poll.totalVotes} oy · ${poll.options.length} secenek',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: Colors.grey[400],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPollDialog(Poll poll) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              PollCard(poll: poll),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showPollsDialog(List<Poll> polls) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Icon(Icons.poll, color: AppTheme.primaryColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Topluluk Anketleri',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(),
+            // Polls list
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: polls.length,
+                itemBuilder: (context, index) {
+                  return PollCard(poll: polls[index]);
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -454,7 +766,7 @@ class _PeriodScreenState extends State<PeriodScreen> {
                     isUserVote: isUserVote,
                     isTopVoted: isTopVoted,
                     isEligible: article.isEligibleForDiscussion || period.phase == PeriodPhase.voting,
-                    minVotesThreshold: period.minVotesForDiscussion,
+                    topArticlesCount: period.topArticlesCount,
                     onVote: period.phase == PeriodPhase.voting && !_loadingVotes
                         ? () => _toggleVote(article.id)
                         : null,
@@ -474,7 +786,7 @@ class _PeriodScreenState extends State<PeriodScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Esik altinda kaldi (min ${period.minVotesForDiscussion} oy)',
+                    'Ilk ${period.topArticlesCount} siraya giremedi',
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 8),
@@ -488,7 +800,7 @@ class _PeriodScreenState extends State<PeriodScreen> {
                       isUserVote: _userVotes.contains(article.id),
                       isTopVoted: false,
                       isEligible: false,
-                      minVotesThreshold: period.minVotesForDiscussion,
+                      topArticlesCount: period.topArticlesCount,
                       onVote: null,
                       onDiscuss: null,
                     );
@@ -540,7 +852,7 @@ class _ArticleCard extends StatelessWidget {
   final bool isUserVote;
   final bool isTopVoted;
   final bool isEligible;
-  final int minVotesThreshold;
+  final int topArticlesCount; // v10.0: renamed from minVotesThreshold
   final VoidCallback? onVote;
   final VoidCallback? onDiscuss;
 
@@ -552,7 +864,7 @@ class _ArticleCard extends StatelessWidget {
     required this.isUserVote,
     required this.isTopVoted,
     required this.isEligible,
-    required this.minVotesThreshold,
+    required this.topArticlesCount,
     this.onVote,
     this.onDiscuss,
   });

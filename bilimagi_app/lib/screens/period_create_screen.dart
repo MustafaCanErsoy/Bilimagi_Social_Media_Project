@@ -18,7 +18,7 @@ class _PeriodCreateScreenState extends State<PeriodCreateScreen> {
 
   DateTime? _startDate;
   DateTime? _endDate;
-  int _minVotesForDiscussion = 1;
+  int _topArticlesCount = 3; // v10.0: Default to top 3 articles
   bool _isLoading = false;
 
   @override
@@ -76,7 +76,7 @@ class _PeriodCreateScreenState extends State<PeriodCreateScreen> {
             : _descriptionController.text.trim(),
         startDate: _startDate,
         endDate: _endDate,
-        minVotesForDiscussion: _minVotesForDiscussion,
+        topArticlesCount: _topArticlesCount, // v10.0
       );
 
       if (mounted) {
@@ -192,22 +192,22 @@ class _PeriodCreateScreenState extends State<PeriodCreateScreen> {
             ],
             const SizedBox(height: 24),
 
-            // Min Votes Threshold
+            // Top N Articles (v10.0)
             Text(
-              'Tartisma Esigi',
+              'Tartismaya Alinacak Makale Sayisi',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             Text(
-              'Tartisma fazina gecildiginde, en az bu kadar oy alan makaleler tartismaya acilir.',
+              'Tartisma fazina gecildiginde, en cok oy alan bu kadar makale tartismaya acilir.',
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
             const SizedBox(height: 12),
             Row(
               children: [
                 IconButton(
-                  onPressed: _minVotesForDiscussion > 1
-                      ? () => setState(() => _minVotesForDiscussion--)
+                  onPressed: _topArticlesCount > 1
+                      ? () => setState(() => _topArticlesCount--)
                       : null,
                   icon: const Icon(Icons.remove_circle_outline),
                 ),
@@ -218,7 +218,7 @@ class _PeriodCreateScreenState extends State<PeriodCreateScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '$_minVotesForDiscussion',
+                    '$_topArticlesCount',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -226,13 +226,13 @@ class _PeriodCreateScreenState extends State<PeriodCreateScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: _minVotesForDiscussion < 100
-                      ? () => setState(() => _minVotesForDiscussion++)
+                  onPressed: _topArticlesCount < 20
+                      ? () => setState(() => _topArticlesCount++)
                       : null,
                   icon: const Icon(Icons.add_circle_outline),
                 ),
                 const SizedBox(width: 8),
-                const Text('oy'),
+                const Text('makale'),
               ],
             ),
             const SizedBox(height: 8),
@@ -240,13 +240,13 @@ class _PeriodCreateScreenState extends State<PeriodCreateScreen> {
             Wrap(
               spacing: 8,
               children: [1, 3, 5, 10].map((value) {
-                final isSelected = _minVotesForDiscussion == value;
+                final isSelected = _topArticlesCount == value;
                 return ChoiceChip(
                   label: Text('$value'),
                   selected: isSelected,
                   onSelected: (selected) {
                     if (selected) {
-                      setState(() => _minVotesForDiscussion = value);
+                      setState(() => _topArticlesCount = value);
                     }
                   },
                 );
@@ -294,7 +294,7 @@ class _PeriodCreateScreenState extends State<PeriodCreateScreen> {
                     ),
                     const SizedBox(height: 12),
                     _buildInfoRow('1.', 'Oylama Fazi: Uyeler makalelere oy verir'),
-                    _buildInfoRow('2.', 'Tartisma Fazi: Esigi gecen makaleler tartismaya acilir'),
+                    _buildInfoRow('2.', 'Tartisma Fazi: En cok oy alan N makale tartismaya acilir'),
                     _buildInfoRow('3.', 'Kapali Faz: Donem arsivlenir'),
                   ],
                 ),

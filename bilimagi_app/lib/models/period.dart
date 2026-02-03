@@ -3,11 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Period phase enum (v8.0 - replaces WeekPhase)
 enum PeriodPhase { voting, discussion, closed }
 
-/// Period model (v8.0 - replaces Week)
+/// Period model (v10.0 - Top N articles system)
 ///
 /// Represents a flexible discussion period within a community.
 /// Unlike the old Week model, periods are not tied to calendar weeks
 /// and support multiple articles for discussion.
+///
+/// v10.0: Changed from minVotesForDiscussion (threshold-based) to
+/// topArticlesCount (top N articles become eligible for discussion).
 class Period {
   final String id;
   final String communityId;
@@ -17,7 +20,7 @@ class Period {
   final DateTime? startDate;
   final DateTime? endDate;
   final DateTime createdAt;
-  final int minVotesForDiscussion;
+  final int topArticlesCount; // v10.0: Top N articles for discussion (default: 3)
   final DateTime? phaseChangedAt;
   final String? phaseChangedByUid;
 
@@ -30,7 +33,7 @@ class Period {
     this.startDate,
     this.endDate,
     required this.createdAt,
-    this.minVotesForDiscussion = 1,
+    this.topArticlesCount = 3, // v10.0: Default to top 3 articles
     this.phaseChangedAt,
     this.phaseChangedByUid,
   });
@@ -46,7 +49,8 @@ class Period {
       startDate: (data['startDate'] as Timestamp?)?.toDate(),
       endDate: (data['endDate'] as Timestamp?)?.toDate(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      minVotesForDiscussion: data['minVotesForDiscussion'] ?? 1,
+      // v10.0: Support both old (minVotesForDiscussion) and new (topArticlesCount) fields
+      topArticlesCount: data['topArticlesCount'] ?? data['minVotesForDiscussion'] ?? 3,
       phaseChangedAt: (data['phaseChangedAt'] as Timestamp?)?.toDate(),
       phaseChangedByUid: data['phaseChangedByUid'],
     );
@@ -107,7 +111,7 @@ class Period {
       if (startDate != null) 'startDate': Timestamp.fromDate(startDate!),
       if (endDate != null) 'endDate': Timestamp.fromDate(endDate!),
       'createdAt': Timestamp.fromDate(createdAt),
-      'minVotesForDiscussion': minVotesForDiscussion,
+      'topArticlesCount': topArticlesCount, // v10.0: Top N articles
       if (phaseChangedAt != null) 'phaseChangedAt': Timestamp.fromDate(phaseChangedAt!),
       if (phaseChangedByUid != null) 'phaseChangedByUid': phaseChangedByUid,
     };
@@ -119,7 +123,7 @@ class Period {
     PeriodPhase? phase,
     DateTime? startDate,
     DateTime? endDate,
-    int? minVotesForDiscussion,
+    int? topArticlesCount,
     DateTime? phaseChangedAt,
     String? phaseChangedByUid,
   }) {
@@ -132,7 +136,7 @@ class Period {
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       createdAt: createdAt,
-      minVotesForDiscussion: minVotesForDiscussion ?? this.minVotesForDiscussion,
+      topArticlesCount: topArticlesCount ?? this.topArticlesCount,
       phaseChangedAt: phaseChangedAt ?? this.phaseChangedAt,
       phaseChangedByUid: phaseChangedByUid ?? this.phaseChangedByUid,
     );

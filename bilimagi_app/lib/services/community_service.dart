@@ -546,14 +546,14 @@ class CommunityService {
 
   // ==================== PERIOD MANAGEMENT ====================
 
-  /// Create a new period for community (v8.0 - replaces createNewWeek)
+  /// Create a new period for community (v10.0 - Top N articles system)
   Future<String> createNewPeriod({
     required String communityId,
     required String title,
     String? description,
     DateTime? startDate,
     DateTime? endDate,
-    int minVotesForDiscussion = 1,
+    int topArticlesCount = 3, // v10.0: Top N articles (default: 3)
   }) async {
     final uid = _currentUid;
     if (uid == null) throw Exception('User not logged in');
@@ -574,7 +574,7 @@ class CommunityService {
       'phase': 'voting',
       if (startDate != null) 'startDate': Timestamp.fromDate(startDate),
       if (endDate != null) 'endDate': Timestamp.fromDate(endDate),
-      'minVotesForDiscussion': minVotesForDiscussion,
+      'topArticlesCount': topArticlesCount, // v10.0
       'createdAt': FieldValue.serverTimestamp(),
     });
 

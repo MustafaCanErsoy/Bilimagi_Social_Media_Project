@@ -29,7 +29,7 @@ class PeriodService {
     String? description,
     DateTime? startDate,
     DateTime? endDate,
-    int minVotesForDiscussion = 1,
+    int topArticlesCount = 3, // v10.0: Top N articles (default: 3)
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw Exception('Kullanici oturumu acik degil');
@@ -44,7 +44,7 @@ class PeriodService {
       startDate: startDate,
       endDate: endDate,
       createdAt: DateTime.now(),
-      minVotesForDiscussion: minVotesForDiscussion,
+      topArticlesCount: topArticlesCount,
     );
 
     await periodRef.set(period.toFirestore());
@@ -134,13 +134,16 @@ class PeriodService {
     });
   }
 
-  /// Mark articles eligible for discussion based on vote threshold
+  /// Mark articles eligible for discussion based on Top N ranking (v10.0)
+  ///
+  /// Top N articles (by vote count) become eligible for discussion.
+  /// Tie-breaker: Earlier created articles win (createdAt ascending).
   Future<void> _markEligibleArticles(String periodId) async {
     final periodDoc = await _db.collection('periods').doc(periodId).get();
     if (!periodDoc.exists) return;
 
     final period = Period.fromFirestore(periodDoc);
-    final threshold = period.minVotesForDiscussion;
+    final topN = period.topArticlesCount;
 
     final articlesSnapshot = await _db
         .collection('periods')
@@ -148,7 +151,10 @@ class PeriodService {
         .collection('articles')
         .get();
 
-    final batch = _db.batch();
+    if (articlesSnapshot.docs.isEmpty) return;
+
+    // Collect articles with vote counts and createdAt
+    final List<Map<String, dynamic>> articlesWithVotes = [];
 
     for (final articleDoc in articlesSnapshot.docs) {
       final votesSnapshot = await _db
@@ -160,10 +166,32 @@ class PeriodService {
           .get();
 
       final voteCount = votesSnapshot.docs.length;
-      final isEligible = voteCount >= threshold;
+      final createdAt = (articleDoc.data()['createdAt'] as Timestamp?)?.toDate()
+          ?? DateTime.now();
 
-      batch.update(articleDoc.reference, {
+      articlesWithVotes.add({
+        'ref': articleDoc.reference,
         'voteCount': voteCount,
+        'createdAt': createdAt,
+      });
+    }
+
+    // Sort: Primary by voteCount (descending), secondary by createdAt (ascending - earlier wins)
+    articlesWithVotes.sort((a, b) {
+      final voteCompare = (b['voteCount'] as int).compareTo(a['voteCount'] as int);
+      if (voteCompare != 0) return voteCompare;
+      return (a['createdAt'] as DateTime).compareTo(b['createdAt'] as DateTime);
+    });
+
+    // Mark top N as eligible
+    final batch = _db.batch();
+
+    for (int i = 0; i < articlesWithVotes.length; i++) {
+      final article = articlesWithVotes[i];
+      final isEligible = i < topN;
+
+      batch.update(article['ref'] as DocumentReference, {
+        'voteCount': article['voteCount'],
         'isEligibleForDiscussion': isEligible,
       });
     }
@@ -178,15 +206,15 @@ class PeriodService {
     String? description,
     DateTime? startDate,
     DateTime? endDate,
-    int? minVotesForDiscussion,
+    int? topArticlesCount, // v10.0: renamed from minVotesForDiscussion
   }) async {
     final updates = <String, dynamic>{};
     if (title != null) updates['title'] = title;
     if (description != null) updates['description'] = description;
     if (startDate != null) updates['startDate'] = Timestamp.fromDate(startDate);
     if (endDate != null) updates['endDate'] = Timestamp.fromDate(endDate);
-    if (minVotesForDiscussion != null) {
-      updates['minVotesForDiscussion'] = minVotesForDiscussion;
+    if (topArticlesCount != null) {
+      updates['topArticlesCount'] = topArticlesCount;
     }
 
     if (updates.isNotEmpty) {

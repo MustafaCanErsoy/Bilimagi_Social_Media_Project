@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
+import '../models/user_badge.dart';
+import '../models/contribution_score.dart';
 import '../services/profile_service.dart';
 import '../services/auth_service.dart';
 import '../services/follow_service.dart';
+import '../services/badge_service.dart';
 import '../widgets/profile_header.dart';
 import '../widgets/interest_tags_display.dart';
 import '../widgets/profile_activity_card.dart';
+import '../widgets/badge_display.dart';
+import '../widgets/contribution_level_card.dart';
 import '../core/app_colors.dart';
 import '../core/app_typography.dart';
 import 'profile_edit_screen.dart';
@@ -33,6 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   final _profileService = ProfileService();
   final _followService = FollowService();
   final _authService = AuthService();
+  final _badgeService = BadgeService();
 
   late AnimationController _headerController;
   late AnimationController _contentController;
@@ -197,6 +203,34 @@ class _ProfileScreenState extends State<ProfileScreen>
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: _buildStatsCard(context, profile),
+              ),
+            ),
+          ),
+        ),
+
+        // Badges section (v10.0)
+        SliverToBoxAdapter(
+          child: SlideTransition(
+            position: _contentSlideAnimation,
+            child: FadeTransition(
+              opacity: _contentFadeAnimation,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildBadgesSection(context, profile.uid),
+              ),
+            ),
+          ),
+        ),
+
+        // Contribution level section (v10.0)
+        SliverToBoxAdapter(
+          child: SlideTransition(
+            position: _contentSlideAnimation,
+            child: FadeTransition(
+              opacity: _contentFadeAnimation,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _buildContributionSection(context, profile.uid),
               ),
             ),
           ),
@@ -428,6 +462,110 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
         ),
       ],
+    );
+  }
+
+  /// v10.0: Build badges section with StreamBuilder
+  Widget _buildBadgesSection(BuildContext context, String uid) {
+    return StreamBuilder<List<UserBadge>>(
+      stream: _badgeService.streamUserBadges(uid),
+      builder: (context, snapshot) {
+        final badges = snapshot.data ?? [];
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.workspace_premium, color: AppColors.primary, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Rozetler',
+                      style: AppTypography.h3.copyWith(
+                        color: AppColors.getTextPrimary(context),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (badges.isNotEmpty)
+                      Text(
+                        '${badges.length} rozet',
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.getTextMuted(context),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (badges.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.workspace_premium_outlined,
+                            size: 40,
+                            color: AppColors.getTextMuted(context),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Henuz rozet kazanilmadi',
+                            style: AppTypography.body.copyWith(
+                              color: AppColors.getTextMuted(context),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Yorum yaparak ve oneri vererek rozet kazanin!',
+                            style: AppTypography.caption.copyWith(
+                              color: AppColors.getTextMuted(context),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  BadgeList(badges: badges, showEarnedDate: true),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// v10.0: Build contribution level section with StreamBuilder
+  Widget _buildContributionSection(BuildContext context, String uid) {
+    return StreamBuilder<ContributionScore>(
+      stream: _badgeService.streamContributionScore(uid),
+      builder: (context, snapshot) {
+        final score = snapshot.data ?? const ContributionScore();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.trending_up, color: AppColors.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Katki Seviyesi',
+                  style: AppTypography.h3.copyWith(
+                    color: AppColors.getTextPrimary(context),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ContributionLevelCard(score: score, showDetails: true),
+          ],
+        );
+      },
     );
   }
 

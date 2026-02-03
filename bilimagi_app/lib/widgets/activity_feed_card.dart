@@ -8,12 +8,14 @@ class ActivityFeedCard extends StatelessWidget {
   final UserActivity activity;
   final VoidCallback? onTap;
   final VoidCallback? onUserTap;
+  final bool showCommunityHint; // v10.0: Show hint for join activities
 
   const ActivityFeedCard({
     super.key,
     required this.activity,
     this.onTap,
     this.onUserTap,
+    this.showCommunityHint = false,
   });
 
   IconData get _activityIcon {
@@ -180,6 +182,39 @@ class ActivityFeedCard extends StatelessWidget {
                             color: colorScheme.onSurfaceVariant,
                           ),
                         ),
+                        // v10.0: Show community hint for join activities
+                        if (showCommunityHint && activity.type == ActivityType.join) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.open_in_new,
+                                  size: 10,
+                                  color: Colors.green.shade700,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Topluluğu gör',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.green.shade700,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
