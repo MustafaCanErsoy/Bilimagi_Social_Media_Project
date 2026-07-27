@@ -129,16 +129,19 @@ bilimagi_app/lib/
 
 ### **Prerequisites**
 - Flutter 3.10.8 or higher
-- Firebase project configured (see `firebase_options.dart`)
+- Your own Firebase project (see [Firebase Setup](#firebase-setup) below)
 
 ### **Installation**
 ```bash
 # Clone repository
-git clone <repo-url>
-cd bilimagi_app
+git clone https://github.com/MustafaCanErsoy/Bilimagi_Social_Media_Project.git
+cd Bilimagi_Social_Media_Project/bilimagi_app
 
 # Install dependencies
 flutter pub get
+
+# Configure Firebase (required — see below)
+flutterfire configure
 
 # Run on Chrome (fastest for development)
 flutter run -d chrome
@@ -146,6 +149,36 @@ flutter run -d chrome
 # Run on Android emulator
 flutter run -d emulator-5554
 ```
+
+### **Firebase Setup**
+
+> **No API keys are included in this repository.** `firebase_options.dart` and
+> `google-services.json` hold project-specific configuration and are deliberately
+> excluded from version control, so the app **will not run until you supply your own**.
+
+Point the app at a Firebase project of your own:
+
+1. Create a project at the [Firebase console](https://console.firebase.google.com/).
+2. Enable **Authentication** (Email/Password provider) and **Cloud Firestore**.
+3. Generate the config files:
+
+   ```bash
+   dart pub global activate flutterfire_cli
+   flutterfire configure
+   ```
+
+   This writes `lib/firebase_options.dart` and `android/app/google-services.json`
+   for your project. Both are gitignored, so they stay on your machine.
+
+Prefer to do it by hand? Copy the templates and fill in the placeholders:
+
+```bash
+cp lib/firebase_options.dart.example lib/firebase_options.dart
+cp android/app/google-services.json.example android/app/google-services.json
+```
+
+Then set your Firestore security rules before adding any real data — the default
+test-mode rules leave the database open to anyone.
 
 ### **Load Demo Data**
 1. Login with admin account:
@@ -193,12 +226,10 @@ flutter run -d emulator-5554
 
 | Document | Description |
 |----------|-------------|
-| [START_HERE.md](docs/START_HERE.md) | Quick start guide |
-| [STATUS.md](docs/STATUS.md) | Current project status |
-| [FILE_MAP.md](docs/FILE_MAP.md) | File reference guide |
-| [DATA_CONTRACT.md](docs/DATA_CONTRACT.md) | Database schema |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System design and architecture |
+| [DATA_CONTRACT.md](docs/DATA_CONTRACT.md) | Firestore database schema |
+| [COMMUNITY_SYSTEM.md](docs/COMMUNITY_SYSTEM.md) | How communities and voting periods work |
 | [CHANGELOG.md](docs/CHANGELOG.md) | Version history |
-| [CLAUDE.md](CLAUDE.md) | AI assistant instructions |
 
 ---
 
