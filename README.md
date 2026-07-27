@@ -23,17 +23,17 @@ Bilimagi is a **full-featured social platform** for scientific article discussio
 ## Features (v10.0)
 
 ### **Extended Features (v10.0 NEW)**
-- **Top N Makale Sistemi** - En cok oy alan N makale tartismaya acilir (varsayilan: 3)
-- **Donem Arama** - Kesfen sekmesinde donem/topluluk arama
-- **Aktivite Filtreleri** - Yorumlar, Oylar, Katilimlar, Oneriler filtreleri
-- **Aktivite Pagination** - "Daha Fazla Yukle" butonu
-- **Rozet Sistemi UI** - Profil ekraninda rozet gosterimi
-- **Katki Seviyesi UI** - Profil ekraninda seviye karti
-- **Duyuru Sistemi UI** - Period ekraninda duyuru banner
-- **Anket Sistemi UI** - Period ekraninda aktif anketler
-- **Makale Detay Ekrani** - Hero image, markdown, bookmark, paylasma
-- **Kullanici Arama** - Debounced arama ile kullanici bulma
-- **Bildirim Kategorileri** - Sosyal, Topluluk, Oneriler filtreleri
+- **Top-N Article System** - The N most-voted articles open for discussion (default: 3)
+- **Period Search** - Search periods and communities from the Explore tab
+- **Activity Filters** - Filter by comments, votes, participations and suggestions
+- **Activity Pagination** - "Load more" button
+- **Badge System UI** - Badges displayed on the profile screen
+- **Contribution Level UI** - Level card on the profile screen
+- **Announcement System UI** - Announcement banner on the period screen
+- **Poll System UI** - Active polls on the period screen
+- **Article Detail Screen** - Hero image, markdown rendering, bookmarking, sharing
+- **User Search** - Find users with debounced search
+- **Notification Categories** - Social, community and suggestion filters
 
 ### **Community Features (v8.0-v9.0)**
 - **Flexible Period System** - Admin-defined periods (not tied to calendar)
@@ -183,7 +183,7 @@ test-mode rules leave the database open to anyone.
    - Email: `admin@bilimagi.com`
    - Password: `admin123`
 2. Navigate to Communities -> Admin icon (top-right)
-3. Tap "Demo Verilerini Yukle"
+3. Tap **"Demo Verilerini Yukle"** (Load demo data)
 4. Wait for success message
 
 ---
