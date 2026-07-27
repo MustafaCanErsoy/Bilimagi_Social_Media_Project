@@ -121,8 +121,6 @@ bilimagi_app/lib/
     └── ...
 ```
 
-**See:** [docs/FILE_MAP.md](docs/FILE_MAP.md) for detailed breakdown
-
 ---
 
 ## Quick Start
