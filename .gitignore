@@ -39,6 +39,15 @@ build/
 **/ios/**/*.mode2v3
 **/ios/**/*.pbxuser
 
+# ── Firebase project configuration (supply your own; see README) ─────
+**/google-services.json
+!**/google-services.json.example
+**/GoogleService-Info.plist
+!**/GoogleService-Info.plist.example
+**/lib/firebase_options.dart
+!**/lib/firebase_options.dart.example
+.firebaserc
+
 # ── Secrets ──────────────────────────────────────────────────────────
 .env
 .env.*
